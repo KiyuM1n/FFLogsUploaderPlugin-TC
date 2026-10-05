@@ -70,18 +70,21 @@ public partial class MainWindow
             
             ImGui.SameLine();
             if (ImGui.Button("Copy report link"))
-            {
                 ImGui.SetClipboardText($"https://www.fflogs.com/reports/{uploadALogReportCode}");
-            }
 
             ImGui.SameLine();
             if (ImGui.Button("Open report link"))
-            {
                 Task.Run(() => Process.Start(new ProcessStartInfo
                 {
                     FileName = $"https://www.fflogs.com/reports/{uploadALogReportCode}", UseShellExecute = true
                 }));
-            }
+            
+            ImGui.SameLine();
+            if (ImGui.Button("Open XIVAnalysis"))
+                Task.Run(() => Process.Start(new ProcessStartInfo
+                {
+                    FileName = $"https://xivanalysis.com/fflogs/{uploadALogReportCode}", UseShellExecute = true
+                }));
         }
     }
 
@@ -116,7 +119,7 @@ public partial class MainWindow
             uploadALogProgress.ProgressChanged += OnUploadLogProgress;
         }
 
-        Task.Run(() => plugin.FfLogs.UploadLogFileAsync(logFilePath, region, visibility, guildId == -1 ? null : guildId,
+        Task.Run(() => plugin.FFLogs.UploadLogFileAsync(logFilePath, region, visibility, guildId == -1 ? null : guildId,
                                                    reportDescription, [], uploadALogProgress))
             .ContinueWith(task =>
             {

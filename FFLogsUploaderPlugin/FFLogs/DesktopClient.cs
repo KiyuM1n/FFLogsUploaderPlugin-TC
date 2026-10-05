@@ -29,12 +29,12 @@ public class DesktopClient : IDisposable
 
     public DesktopClient()
     {
-        httpClient = new HttpClient(new HttpClientHandler
+        httpClient = new HttpClient(new RetryHandler(new HttpClientHandler
                                     {
                                         CookieContainer = cookies,
                                         UseCookies = true,
                                         AutomaticDecompression = DecompressionMethods.All
-                                    })
+                                    }))
         {
             BaseAddress = new Uri(BaseUrl),
             DefaultRequestHeaders =
@@ -53,7 +53,7 @@ public class DesktopClient : IDisposable
         };
     }
 
-    public async Task<LoginResponse> LoginAsync(string email, string password)
+    public async Task<LoginResponse> LoginAsync(string email, string password, CancellationToken token = default)
     {
         using var content = new StringContent(
             JsonConvert.SerializeObject(
@@ -66,15 +66,15 @@ public class DesktopClient : IDisposable
                 },
                 jsonSerializerSettings),
             Encoding.UTF8, "application/json");
-        using var resp = await httpClient.PostAsync("/desktop-client/log-in", content);
+        using var resp = await httpClient.PostAsync("/desktop-client/log-in", content, token);
 
         return await HandleResponse<LoginResponse>(resp);
     }
 
-    public async Task LogoutAsync()
+    public async Task LogoutAsync(CancellationToken token = default)
     {
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
-        using var resp = await httpClient.PostAsync("/desktop-client/log-out", content);
+        using var resp = await httpClient.PostAsync("/desktop-client/log-out", content, token);
 
         resp.EnsureSuccessStatusCode();
     }
@@ -162,11 +162,11 @@ public class DesktopClient : IDisposable
     }
 
     public async Task<string> DownloadParserScript(
-        int id, bool gameContentDetectionEnabled, bool metersEnabled, bool liveFightDataEnabled)
+        int id, bool gameContentDetectionEnabled, bool metersEnabled, bool liveFightDataEnabled, CancellationToken token = default)
     {
         // ReSharper disable once UseStringInterpolation
         var uri = string.Format(
-            "{0}/desktop-client/parser?id={1}&ts={2}&gameContentDetectionEnabled={3}&metersEnabled={4}&liveFightDataEnabled={5}&gameVersionId=ff-live",
+            "{0}/desktop-client/parser?id={1}&ts={2}&gameContentDetectionEnabled={3}&metersEnabled={4}&liveFightDataEnabled={5}",
             BaseUrl,
             id,
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
@@ -180,13 +180,13 @@ public class DesktopClient : IDisposable
         requestMessage.Headers.Add("sec-fetch-mode", "navigate");
         requestMessage.Headers.Add("sec-fetch-dest", "iframe");
         
-        var resp = await httpClient.SendAsync(requestMessage);
+        var resp = await httpClient.SendAsync(requestMessage, token);
 
         resp.EnsureSuccessStatusCode();
         
         var doc = new HtmlDocument();
         
-        doc.LoadHtml(await resp.Content.ReadAsStringAsync());
+        doc.LoadHtml(await resp.Content.ReadAsStringAsync(token));
 
         var mergedScript = new StringBuilder();
 
@@ -200,10 +200,10 @@ public class DesktopClient : IDisposable
                 requestMessage2.Headers.Add("sec-fetch-mode", "no-cors");
                 requestMessage2.Headers.Add("sec-fetch-dest", "script");
 
-                var resp2 = await httpClient.SendAsync(requestMessage2);
+                var resp2 = await httpClient.SendAsync(requestMessage2, token);
 
                 resp2.EnsureSuccessStatusCode();
-                mergedScript.AppendLine(await resp2.Content.ReadAsStringAsync());
+                mergedScript.AppendLine(await resp2.Content.ReadAsStringAsync(token));
             } 
             else if (node.InnerHtml.Contains("window.gameContentTypes")
                        || node.InnerHtml.Contains("ipcCollectFights"))
@@ -391,3 +391,45 @@ public class DesktopClient : IDisposable
     }
 }
 
+internal class RetryHandler(HttpMessageHandler innerHandler) : DelegatingHandler(innerHandler)
+{
+    private const int MaxRetries = 5;
+    private const int ExponentialBackoffFactor = 500;
+    
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        HttpRequestException? lastException = null;
+        
+        for (var i = 0; i < MaxRetries; i++)
+        {
+            var delayMs = ExponentialBackoffFactor * Math.Pow(2, i);
+            
+            try
+            {
+                var response = await base.SendAsync(request, cancellationToken);
+
+                if (response.StatusCode < HttpStatusCode.InternalServerError || i == MaxRetries - 1)
+                    return response;
+                
+                Plugin.Log.Warning($"Failed to make a request due to HTTP server error {response.StatusCode}, retrying in {delayMs}ms.");
+            }
+            catch (HttpRequestException e)
+            {
+                if (i == MaxRetries - 1)
+                    // already on last attempt, skip the wait
+                    throw;
+
+                lastException = e;
+                Plugin.Log.Warning(e, $"Failed to make a request due to a network error, retrying in {delayMs}ms.");
+            }
+            
+            await Task.Delay(TimeSpan.FromMilliseconds(delayMs), cancellationToken);
+        }
+
+        if (lastException != null)
+            throw lastException;
+
+        throw new DesktopClient.DesktopClientException(
+            "Failed to make a request, but there was no error recorded.");
+    }
+}

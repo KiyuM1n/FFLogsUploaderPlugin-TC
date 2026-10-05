@@ -7,14 +7,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Utility;
-using FFLogsUploaderPlugin.Integration;
 using Newtonsoft.Json;
 using Serilog.Events;
 
 namespace FFLogsUploaderPlugin.FFLogs;
 
-public class LogUploader(
-    DesktopClient desktopClient, LogParser logParser, LogParser? metersLogParser = null, EngageTimer? engageTimer = null)
+public class LogUploader(DesktopClient desktopClient, LogParser logParser)
 {
     public class LogUploaderException(string message) : Exception(message);
     
@@ -34,7 +32,6 @@ public class LogUploader(
         progress?.Report("Live logging started.");
         FightsUploaded = 0;
         await logParser.ClearAsync();
-        await (metersLogParser?.ClearAsync() ?? Task.CompletedTask);
         
         progress?.Report("Creating FFLogs report.");
         var uploadTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -51,23 +48,20 @@ public class LogUploader(
         onReportCreated?.Invoke(report.Code);
 
         await logParser.SetReportCodeAsync(report.Code);
-        await (metersLogParser?.SetReportCodeAsync(report.Code) ?? Task.CompletedTask);
 
         var segmentId = 1L;
-        var latestLogFile = FindLatestLogFileInFolder(logFolder);
-        var latestLogFileInfo = latestLogFile != null ? new FileInfo(latestLogFile) : null;
-        var latestLogFilePosition = 0L;
-
-        if (latestLogFile != null && latestLogFileInfo is { Length: >0 })
+        var logReader = new DirectoryLogReader(logFolder);
+        
+        if (logReader.CurrentFile is { } latestLogFile)
         {
             if (!includeEntireFileInReport)
             {
                 var t = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 
                 await logParser.SetLiveLoggingStartTimeAsync(t);
-                await (metersLogParser?.SetLiveLoggingStartTimeAsync(t) ?? Task.CompletedTask);
             }
 
+            var fileInfo = new FileInfo(latestLogFile);
             var catchupAction = includeEntireFileInReport ? "Uploading" : "Parsing";
             
             progress?.Report($"{catchupAction} latest log file {Path.GetFileName(latestLogFile)} (0%)");
@@ -81,18 +75,17 @@ public class LogUploader(
                 segmentId = await UploadLogPartAsync(report.Code, chunk.Lines, chunk.EndPosition, chunk.IsEof,
                                                      segmentId, region,
                                                      [], true, false, false);
-                latestLogFilePosition = chunk.EndPosition;
-                progress?.Report($"{catchupAction} latest log file {Path.GetFileName(latestLogFile)} ({Math.Min(100, chunk.EndPosition * 100 / latestLogFileInfo.Length)}%, {chunk.EndPosition}/{latestLogFileInfo.Length})");
+                logReader.CurrentPosition = chunk.EndPosition;
+                
+                progress?.Report($"{catchupAction} latest log file {Path.GetFileName(latestLogFile)} ({Math.Min(100, chunk.EndPosition * 100 / fileInfo.Length)}%, {chunk.EndPosition}/{Math.Max(chunk.EndPosition,fileInfo.Length)})");
 
                 if (token.IsCancellationRequested)
                     break;
             }
         }
         
-        latestLogFileInfo = latestLogFile != null ? new FileInfo(latestLogFile) : null;
-        var latestLogFileInfoTime = latestLogFileInfo != null ? DateTimeOffset.UtcNow.ToUnixTimeSeconds() : 0L;
-        Plugin.Log.Debug("Catch-up completed: LatestLogFile={0} CurrentPosition={1} Length={2}", latestLogFile ?? "None",
-                         latestLogFilePosition, latestLogFileInfo?.Length ?? 0L);
+        Plugin.Log.Debug("Catch-up completed: LatestLogFile={0} CurrentPosition={1}",
+                         logReader.CurrentFile, logReader.CurrentPosition);
 
         if (token.IsCancellationRequested)
         {
@@ -102,127 +95,61 @@ public class LogUploader(
 
         Plugin.Log.Debug("Staring main live log watch loop");
 
-        progress?.Report(latestLogFile != null
-                             ? $"Watching for new logs from {Path.GetFileName(latestLogFile)}."
+        progress?.Report(logReader.CurrentFile != null
+                             ? $"Watching for new logs from {Path.GetFileName(logReader.CurrentFile)}."
                              : "Waiting for a log file. Log files last written more than 6 hours ago are not considered for live logging.");
 
-        while (true)
+        FileInfo? latestFileInfo = null;
+        var lastMeterCollection = DateTime.UtcNow;
+
+        await foreach (var chunk in logReader.IterateChunksAsync(token: token))
         {
-            var newLatestLogFile = FindLatestLogFileInFolder(logFolder);
-            
-            // If there are no new log files, wait for one
-            if (newLatestLogFile == null) {
-                // But if cancellation has been requested, finish up the current log file and bail
+            // There are no latest log files in the directory.
+            if (chunk == null)
+            {
                 if (token.IsCancellationRequested)
                 {
-                    if (latestLogFile != null)
-                    {
-                        await UploadLogPartAsync(report.Code, [], latestLogFileInfo!.Length, true, segmentId,
-                                                region, [], true, false, true);
-                    }
-                    
+                    if (latestFileInfo != null)
+                        await UploadLogPartAsync(report.Code, [], latestFileInfo.Length, true, segmentId,
+                                                 region, [], true, false, true);
+
                     break;
                 }
-
-                // We already checked cancellation above.
-                // ReSharper disable once MethodSupportsCancellation
-#pragma warning disable CA2016
-                await Task.Delay(TimeSpan.FromSeconds(1));
-#pragma warning restore CA2016
+                
                 continue;
             }
-            
-            var currentTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            
-            // If there is a latest log file, and it is different from the current latest log file (aka there's a newer
-            // one), then switch to reading that file
-            if (newLatestLogFile != latestLogFile)
-            {
-                Plugin.Log.Debug($"[LiveLog] Log file changed: {latestLogFile} -> {newLatestLogFile}");
-                
-                latestLogFile = newLatestLogFile;
-                latestLogFilePosition = 0L;
-                latestLogFileInfo = new FileInfo(latestLogFile);
-                latestLogFileInfoTime = currentTime;
-                
-                
-                progress?.Report($"Watching for new logs from {Path.GetFileName(latestLogFile)}.");
-            }
-            else if (latestLogFileInfo == null || currentTime - latestLogFileInfoTime >= 1) 
-            {
-                latestLogFileInfo = new FileInfo(latestLogFile);
-                latestLogFileInfoTime = currentTime;
-            }
 
+            latestFileInfo = chunk.FileInfo;
+            
             // Push fights if the log file has not changed for 120 seconds, or if cancellation is requested.
-            var isIdleLogFile = DateTime.UtcNow.Subtract(File.GetLastWriteTimeUtc(latestLogFile)).TotalSeconds > 120;
+            var isIdleLogFile = DateTime.UtcNow.Subtract(chunk.FileInfo.LastWriteTimeUtc).TotalSeconds > 120;
             var pushFightIfNeeded = token.IsCancellationRequested || isIdleLogFile;
-
+            
             if (pushFightIfNeeded)
-            {
                 Plugin.Log.Debug("[LiveLog] PushFightIfNeeded={0} (CancellationRequested={1}, IdleLogFile={2})",
-                                   pushFightIfNeeded, token.IsCancellationRequested, isIdleLogFile);
-            }
+                                 pushFightIfNeeded, token.IsCancellationRequested, isIdleLogFile);
             
-            // Upload logs from the latest log file, starting from the log position
-            // ReSharper disable once UseCancellationTokenForIAsyncEnumerable
-            await foreach (var chunk in LogReader.ReadFileChunkedLinesAsync(latestLogFile,
-                                                                    startingPosition: latestLogFilePosition))
+            if (Plugin.Log.MinimumLogLevel <= LogEventLevel.Verbose)
             {
-                if (Plugin.Log.MinimumLogLevel <= LogEventLevel.Verbose)
+                var joinedLines = string.Join("\n", chunk.Lines);
+                joinedLines = joinedLines[..Math.Min(500, joinedLines.Length)];
+
+                if (!joinedLines.IsNullOrWhitespace())
                 {
-                    var joinedLines = string.Join("\n", chunk.Lines);
-                    joinedLines = joinedLines[..Math.Min(500, joinedLines.Length)];
-
-                    if (!joinedLines.IsNullOrWhitespace())
-                    {
-                        Plugin.Log.Verbose(joinedLines[..Math.Min(500, joinedLines.Length)]);    
-                    }
-                }
-                
-                latestLogFilePosition = chunk.EndPosition;
-
-                if (chunk.Lines.Count > 0 || chunk.IsEof)
-                {
-                    segmentId = await UploadLogPartAsync(report.Code, chunk.Lines, chunk.EndPosition, chunk.IsEof,
-                                                         segmentId,
-                                                         region, [], true, false,
-                                                         pushFightIfNeeded);
-                    progress?.Report($"Uploading latest log file {Path.GetFileName(latestLogFile)} ({Math.Min(100, chunk.EndPosition * 100 / latestLogFileInfo.Length)}%, {chunk.EndPosition}/{latestLogFileInfo.Length}), {FightsUploaded} fights uploaded");
-                }
-
-                if (token.IsCancellationRequested)
-                    break;
-            }
-            
-            // Plugin.Log.Debug("[LogUploader] MetersLogParser={MetersLogParser} EngageTimer.CombatStart={CombatStart}",
-            //     metersLogParser, engageTimer?.CombatStart);
-
-            if (metersLogParser != null && engageTimer != null)
-            {
-                var meters = await metersLogParser.CollectMetersAsync();
-                var segment = meters.Fights.LastOrDefault()?.Segments.LastOrDefault();
-                
-                // Plugin.Log.Debug("[LogUploader] Zone={ZoneName} ", segment?.Zone.Name);
-
-                if (segment is { State: "inprogress" })
-                {
-                    var segmentStartTime = DateTimeOffset.FromUnixTimeMilliseconds(segment.StartTime).LocalDateTime;
-                    var combatStart = engageTimer.CombatStart;
-
-                    if (combatStart == null || segmentStartTime > combatStart)
-                        engageTimer.CombatStart = segmentStartTime;
+                    Plugin.Log.Verbose(joinedLines[..Math.Min(500, joinedLines.Length)]);    
                 }
             }
             
-            try
+            if (chunk.Lines.Count > 0 || chunk.IsEof)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(500), token);
+                segmentId = await UploadLogPartAsync(report.Code, chunk.Lines, chunk.EndPosition, chunk.IsEof,
+                                                     segmentId, region, [], true, false,
+                                                     pushFightIfNeeded);
+                progress?.Report($"Uploading latest log file {chunk.FileName} ({Math.Min(100, chunk.EndPosition * 100 / chunk.FileInfo.Length)}%, {chunk.EndPosition}/{Math.Max(chunk.EndPosition, chunk.FileInfo.Length)}), {FightsUploaded} fights uploaded");
             }
-            catch (OperationCanceledException)
-            {
+
+            if (token.IsCancellationRequested)
                 break;
-            }
         }
 
         await desktopClient.TerminateReport(report.Code);
@@ -299,15 +226,6 @@ public class LogUploader(
         {
             Plugin.Log.Error($"[LogUploader] Failed to parse log line {result.ParsedLineCount}\n{result.Line}\n{JsonConvert.SerializeObject(result.Exception, Formatting.Indented)}");
             throw new LogUploaderException("Failed to parse a log line, please check Dalamud logs (/xllog)");
-        }
-
-        if (metersLogParser != null)
-        {
-            var metersResult =
-                await metersLogParser.ParseLinesAsync(lines, region, [], false, startPosition);
-
-            if (!metersResult.Success)
-                Plugin.Log.Warning($"[LogUploader] Failed to parse log line in meters parser {result.ParsedLineCount}\n{result.Line}\n{JsonConvert.SerializeObject(result.Exception, Formatting.Indented)}");
         }
 
         var fightData = await logParser.CollectFightsAsync(

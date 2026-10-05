@@ -2,6 +2,7 @@ using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Utility;
 using FFLogsUploaderPlugin.FFLogs;
@@ -14,7 +15,6 @@ public partial class MainWindow
     private string password = string.Empty;
     private bool automaticLogin;
     
-    private bool isLoggingIn;
     private string loginErrorMessage = string.Empty;
     
     private void DrawLoginScreen()
@@ -23,7 +23,7 @@ public partial class MainWindow
         ImGui.Separator();
         ImGui.Spacing();
 
-        using (ImRaii.Disabled(isLoggingIn))
+        using (ImRaii.Disabled(plugin.FFLogs.IsLoggingIn))
         {
             ImGui.SetNextItemWidth(-1);
             if (ImGui.InputTextWithHint("Email##email", "Email", ref email,
@@ -43,23 +43,20 @@ public partial class MainWindow
         
             ImGui.Spacing();
 
-            if (ImGui.Button(isLoggingIn ? "Logging in..." : "Log in", new Vector2(-1, 30)))
+            if (ImGui.Button(plugin.FFLogs.IsLoggingIn ? "Logging in..." : "Log in", new Vector2(-1, 30)))
             {
                 DoLogin();
             }
         }
 
+        if (plugin.FFLogs.LoginError is { } e)
+            loginErrorMessage = e.InnerExceptions.FirstOrDefault(e).Message;
+
         if (!loginErrorMessage.IsNullOrWhitespace())
         {
             ImGui.Spacing();
-            ImGui.TextColored(new Vector4(1, 0.3f, 0.3f, 1), loginErrorMessage);
+            ImGui.TextColored(ImGuiColors.ErrorForeground, loginErrorMessage);
         }
-    }
-    
-    internal void DoAutomaticLogin()
-    {
-        isLoggingIn = true;
-        Task.Run(plugin.FfLogs.AutomaticLoginAsync).ContinueWith(DoLoginContinuation);
     }
 
     private void DoLogin()
@@ -70,14 +67,11 @@ public partial class MainWindow
             return;
         }
         
-        isLoggingIn = true;
-        Task.Run(() => plugin.FfLogs.LoginAsync(email, password, automaticLogin)).ContinueWith(DoLoginContinuation!);
+        plugin.FFLogs.LoginAsync(email, password, automaticLogin).ContinueWith(DoLoginContinuation!);
     }
 
     private void DoLoginContinuation(Task<DesktopClient.LoginResponse?> task)
     {
-        isLoggingIn = false;
-
         if (task.Exception != null)
         {
             Plugin.Log.Error(task.Exception, "Log in failed");
@@ -90,6 +84,6 @@ public partial class MainWindow
                 
         Plugin.Log.Information("Logged in as {0}", user.User.UserName);
         SetOptionsFromConfiguration();
-        StartParser();
+        plugin.FFLogs.StartParsersAsync(false, true, true);
     }
 }

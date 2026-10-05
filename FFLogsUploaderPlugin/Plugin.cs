@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,7 @@ using FFLogsUploaderPlugin.Windows;
 
 namespace FFLogsUploaderPlugin;
 
+// ReSharper disable once ClassNeverInstantiated.Global
 public sealed class Plugin : IAsyncDalamudPlugin
 {
     [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
@@ -31,21 +33,24 @@ public sealed class Plugin : IAsyncDalamudPlugin
     public readonly WindowSystem WindowSystem = new("FFLogsUploaderPlugin");
     internal MainWindow MainWindow { get; init; }
     
-    internal FfLogsManager FfLogs { get; init; }
+    // ReSharper disable once InconsistentNaming
+    internal FFLogsManager FFLogs { get; init; }
     internal EngageTimer EngageTimer { get; init; }
 
     public Plugin()
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-        FfLogs = new FfLogsManager(this);
-        MainWindow = new MainWindow(this);
         EngageTimer = new EngageTimer();
+        FFLogs = new FFLogsManager(this);
+        MainWindow = new MainWindow(this);
 
         PluginInterface.ActivePluginsChanged += OnActivePluginsChanged;
     }
     
     public Task LoadAsync(CancellationToken cancellationToken)
     {
+        _ = FFLogs.InitAsync(cancellationToken);
+        
         WindowSystem.AddWindow(MainWindow);
         
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
@@ -78,10 +83,28 @@ public sealed class Plugin : IAsyncDalamudPlugin
         
         WindowSystem.RemoveAllWindows();
         MainWindow.Dispose();
-        await FfLogs.DisposeAsync();
+        await FFLogs.DisposeAsync();
         
         CommandManager.RemoveHandler(CommandName);
         CommandManager.RemoveHandler(CallWipeCommandName);
+        
+        foreach (var dir in Directory.EnumerateDirectories(Path.GetTempPath(), "????????.???"))
+        {
+            var nativeLib = Path.Combine(dir, "ClearScriptV8.win-x64.dll");
+
+            if (!File.Exists(nativeLib))
+                continue;
+
+            if (Directory.EnumerateFileSystemEntries(dir).Count() > 1)
+                continue;
+
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
     }
 
     private void OnActivePluginsChanged(IActivePluginsChangedEventArgs args)
@@ -108,7 +131,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
 
     private void OnCallWipe(string command, string args)
     {
-        if (!FfLogs.IsLiveLogging)
+        if (!FFLogs.IsLiveLogging)
         {
             ChatGui.PrintError("[FF Logs Uploader] Currently not live logging, cannot call wipe.");
             return;
@@ -116,7 +139,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         
         Task.Run(async () =>
         {
-            await FfLogs.LogParser.CallWipeAsync();
+            await FFLogs.CallWipeAsync();
             ChatGui.Print("[FF Logs Uploader] Called a wipe.");
         });
     }

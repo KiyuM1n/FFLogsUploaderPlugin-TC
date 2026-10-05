@@ -30,7 +30,18 @@ public partial class MainWindow
             ImGui.Text("Folder ACT writes log files to:");
         
             ImGui.SetNextItemWidth(-80);
-            ImGui.InputText("##logFolder", ref logFolder);
+            if (ImGui.InputText("##logFolder", ref logFolder))
+            {
+                plugin.Configuration.LiveLogFolder = logFolder;
+                plugin.Configuration.Save();
+            }
+
+            if (ImGui.IsItemDeactivatedAfterEdit() && engageTimerPerPhase)
+            {
+                plugin.FFLogs.StopMetersLogCollection();
+                plugin.FFLogs.StartMetersLogCollectionAsync();
+            }
+            
             ImGui.SameLine();
             if (ImGui.Button("Browse##browseLogFolder"))
                 fileDialogManager.OpenFolderDialog("Select Log Folder",
@@ -42,6 +53,12 @@ public partial class MainWindow
                                                        logFolder = path;
                                                        plugin.Configuration.LiveLogFolder = logFolder;
                                                        plugin.Configuration.Save();
+                                                       
+                                                       if (engageTimerPerPhase)
+                                                       {
+                                                           plugin.FFLogs.StopMetersLogCollection();
+                                                           plugin.FFLogs.StartMetersLogCollectionAsync();
+                                                       }
                                                    },
                                                    GetDialogStartPath(logFolder));
         
@@ -64,16 +81,16 @@ public partial class MainWindow
         // Keep this interactable if live logging is active so the user can stop it.
         ImGui.Spacing();
         if (DrawActionButtonAndMessages(
-                plugin.FfLogs.IsLiveLogging ? "Stop" : "Start",
+                plugin.FFLogs.IsLiveLogging ? "Stop" : "Start",
                 uploadALogStatus == OperationStatus.InProgress || splitALogStatus == OperationStatus.InProgress,
                 liveLogProgressMessage,
                 liveLogErrorMessage)
             )
         {
-            if (plugin.FfLogs.IsLiveLogging)
-                plugin.FfLogs.StopLiveLogging();
+            if (plugin.FFLogs.IsLiveLogging)
+                plugin.FFLogs.StopLiveLogging();
             else
-                StartLiveLogging();
+                plugin.FFLogs.StartLiveLoggingAsync(reportDescription, includeEntireFileInReport);
         }
         
         if (!liveLogReportCode.IsNullOrWhitespace())
@@ -83,52 +100,27 @@ public partial class MainWindow
             
             ImGui.SameLine();
             if (ImGui.Button("Copy report link"))
-            {
                 ImGui.SetClipboardText($"https://www.fflogs.com/reports/{liveLogReportCode}");
-            }
 
             ImGui.SameLine();
             if (ImGui.Button("Open report link"))
-            {
                 Task.Run(() => Process.Start(new ProcessStartInfo
                 {
                     FileName = $"https://www.fflogs.com/reports/{liveLogReportCode}", UseShellExecute = true
                 }));
-            }
+
+            ImGui.SameLine();
+            if (ImGui.Button("Open XIVAnalysis"))
+                Task.Run(() => Process.Start(new ProcessStartInfo
+                {
+                    FileName = $"https://xivanalysis.com/fflogs/{liveLogReportCode}", UseShellExecute = true
+                }));
         }
     }
-    
-    internal void StartLiveLogging(bool isAutomaticOperation = false)
+
+    private void OnLiveLoggingStarted(object? sender, EventArgs args)
     {
         liveLoggingStatus = OperationStatus.InProgress;
-        liveLogReportCode = string.Empty;
-        liveLogProgressMessage = string.Empty;
-        liveLogErrorMessage = string.Empty;
-
-        if (logFolder.IsNullOrWhitespace())
-        {
-            liveLoggingStatus = OperationStatus.Idle;
-            liveLogErrorMessage = "Path to log folder is missing.";
-            return;
-        }
-
-        if (!Directory.Exists(logFolder))
-        {
-            liveLoggingStatus = OperationStatus.Idle;
-            liveLogErrorMessage = "Log folder does not exist or is a file.";
-            return;
-        }
-        
-        var guildId = SelectedGuildValue;
-        var visibility = SelectedVisibilityValue;
-        var region = SelectedRegionValue;
-
-        // It doesn't make a lot of sense to upload the entire log file every time if you're going to have 
-        // live logging start and stop every duty, hence includeEntireFileInReport && !isAutomaticOperation
-        // TODO: For automatic live logging, allow a report description template to be used
-        plugin.FfLogs.StartLiveLoggingAsync(logFolder, region, visibility, guildId == -1 ? null : guildId,
-                                            isAutomaticOperation ? string.Empty : reportDescription,
-                                            includeEntireFileInReport && !isAutomaticOperation);
     }
 
     private void OnLiveLoggingProgress(object? sender, string progress)

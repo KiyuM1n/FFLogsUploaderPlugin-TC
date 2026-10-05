@@ -2,8 +2,8 @@
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.ImGuiFileDialog;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
@@ -18,16 +18,14 @@ public partial class MainWindow : Window, IDisposable
     private readonly FileDialogManager fileDialogManager = new();
     private readonly IINACTIpc iinact;
     
-    private string parserStartErrorMessage = string.Empty;
-    
     private int selectedGuildIndex;
     private int selectedRegionIndex;
     private int selectedVisibilityIndex;
     
-    private long SelectedGuildValue => plugin.FfLogs.User?.GuildSelectItems[selectedGuildIndex].Value ?? 0L;
-    private long SelectedRegionValue => plugin.FfLogs.User?.RegionOrServerSelectItems[selectedRegionIndex].Value ?? 0L;
+    private long SelectedGuildValue => plugin.FFLogs.User?.GuildSelectItems[selectedGuildIndex].Value ?? 0L;
+    private long SelectedRegionValue => plugin.FFLogs.User?.RegionOrServerSelectItems[selectedRegionIndex].Value ?? 0L;
     private long SelectedVisibilityValue =>
-        plugin.FfLogs.User?.ReportVisibilitySelectItems[selectedVisibilityIndex].Value ?? 0L;
+        plugin.FFLogs.User?.ReportVisibilitySelectItems[selectedVisibilityIndex].Value ?? 0L;
     
     private string reportDescription = string.Empty;
     
@@ -52,18 +50,18 @@ public partial class MainWindow : Window, IDisposable
         iinact = new IINACTIpc(Plugin.PluginInterface);
         
         SetOptionsFromConfiguration();
-        DoAutomaticLogin();
-        
-        plugin.FfLogs.LiveLoggingReportCreated += OnLiveLoggingReportCreated;
-        plugin.FfLogs.LiveLoggingProgress += OnLiveLoggingProgress;
-        plugin.FfLogs.LiveLoggingEnded += OnLiveLoggingEnded;
+
+        plugin.FFLogs.LiveLoggingStarted += OnLiveLoggingStarted;
+        plugin.FFLogs.LiveLoggingReportCreated += OnLiveLoggingReportCreated;
+        plugin.FFLogs.LiveLoggingProgress += OnLiveLoggingProgress;
+        plugin.FFLogs.LiveLoggingEnded += OnLiveLoggingEnded;
     }
 
     public void Dispose()
     {
-        plugin.FfLogs.LiveLoggingEnded -= OnLiveLoggingEnded;
-        plugin.FfLogs.LiveLoggingProgress -= OnLiveLoggingProgress;
-        plugin.FfLogs.LiveLoggingReportCreated -= OnLiveLoggingReportCreated;
+        plugin.FFLogs.LiveLoggingEnded -= OnLiveLoggingEnded;
+        plugin.FFLogs.LiveLoggingProgress -= OnLiveLoggingProgress;
+        plugin.FFLogs.LiveLoggingReportCreated -= OnLiveLoggingReportCreated;
 
         GC.SuppressFinalize(this);
     }
@@ -75,7 +73,7 @@ public partial class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        if (plugin.FfLogs.User == null)
+        if (plugin.FFLogs.User == null)
         {
             DrawLoginScreen();
             return;
@@ -122,14 +120,16 @@ public partial class MainWindow : Window, IDisposable
 
     private bool DrawParserStatus()
     {
-        if (!parserStartErrorMessage.IsNullOrWhitespace())
+        if (plugin.FFLogs.ParsersError is { } e)
         {
-            ImGui.TextColored(new Vector4(1, 0.3f, 0.3f, 1), $"Parser failed to load, please check Dalamud logs (/xllog): {parserStartErrorMessage}");
-            ImGui.TextColored(new Vector4(1, 0.3f, 0.3f, 1), "Disable and re-enable the plugin to try again.");
+            var msg = e.InnerExceptions.FirstOrDefault(e).Message;
+            
+            ImGui.TextColored(ImGuiColors.ErrorForeground, $"Parser failed to load, please check Dalamud logs (/xllog): {msg}");
+            ImGui.TextColored(ImGuiColors.ErrorForeground, "Disable and re-enable the plugin to try again.");
             return false;
         } 
         
-        if (!plugin.FfLogs.LogParser.Started || !plugin.FfLogs.MetersLogParser.Started)
+        if (!plugin.FFLogs.ParsersReady)
         {
             ImGui.Text("Loading parser...");
             return false;
@@ -140,9 +140,9 @@ public partial class MainWindow : Window, IDisposable
     
     private void DrawSharedUploadOptions()
     {
-        var guildNames = plugin.FfLogs.User!.GuildSelectItems.Select(item => item.Label).ToArray();
-        var regionNames = plugin.FfLogs.User!.RegionOrServerSelectItems.Select(item => item.Label).ToArray();
-        var visibilityNames = plugin.FfLogs.User!.ReportVisibilitySelectItems.Select(item => item.Label).ToArray();
+        var guildNames = plugin.FFLogs.User!.GuildSelectItems.Select(item => item.Label).ToArray();
+        var regionNames = plugin.FFLogs.User!.RegionOrServerSelectItems.Select(item => item.Label).ToArray();
+        var visibilityNames = plugin.FFLogs.User!.ReportVisibilitySelectItems.Select(item => item.Label).ToArray();
         
         ImGui.Text("Guild to upload to:");
         ImGui.SameLine();
@@ -155,7 +155,7 @@ public partial class MainWindow : Window, IDisposable
         }
         ImGui.SameLine();
 
-        if (plugin.FfLogs.User!.GuildSelectItems[selectedGuildIndex].Value == -1)
+        if (plugin.FFLogs.User!.GuildSelectItems[selectedGuildIndex].Value == -1)
         {
             ImGui.SetNextItemWidth(60);
             if (ImGui.Combo("##region", ref selectedRegionIndex, regionNames))
@@ -178,33 +178,7 @@ public partial class MainWindow : Window, IDisposable
         ImGui.SetNextItemWidth(-1);
         ImGui.InputText("##description", ref reportDescription);
     }
-    
-    internal void StartParser()
-    {
-        Task.Run(() => plugin.FfLogs.StartParserAsync(false, engageTimerPerPhase, false))
-            .ContinueWith(task =>
-            {
-                if (task.Exception != null)
-                {
-                    Plugin.Log.Error(task.Exception, "Loading parser failed");
-                    parserStartErrorMessage = task.Exception.InnerExceptions.FirstOrDefault(task.Exception).Message;
-                    return;
-                }
 
-                Task.Run(plugin.FfLogs.LogParser.GetParserVersionAsync).ContinueWith(task1 =>
-                {
-                    if (task1.Exception != null)
-                    {
-                        Plugin.Log.Error(task1.Exception, "Getting plugin version failed");
-                        parserStartErrorMessage = task1.Exception.InnerExceptions.FirstOrDefault(task1.Exception).Message;
-                        return;
-                    }
-
-                    Plugin.Log.Information("Parser version {0} loaded", task1.Result);
-                });
-            });
-    }
-    
     private static bool DrawActionButtonAndMessages(string buttonLabel, bool isButtonDisabled, string progressMessage, string errorMessage)
     {
         bool result;

@@ -20,6 +20,21 @@ public class EngageTimer
     private FieldInfo? combatTimeEndField;
     // private FieldInfo? shouldRestartCombatTimerField;
 
+    private object? etState;
+    private PropertyInfo? inCombatProperty;
+
+    public bool InCombat
+    {
+        get => etState != null
+               && inCombatProperty is { GetMethod: not null }
+               && (bool)inCombatProperty.GetMethod.Invoke(etState, [])!;
+        set
+        {
+            if (etState != null && inCombatProperty is { SetMethod: not null })
+                inCombatProperty.SetMethod.Invoke(etState, [value]);
+        }
+    }
+
     public DateTime? CombatStart
     {
         get => combatStopwatch != null
@@ -67,8 +82,12 @@ public class EngageTimer
         combatTimeEndField = etCombatStopwatchType?.GetField("_combatTimeEnd", BindingFlagsAll);
         // shouldRestartCombatTimerField = etCombatStopwatchType?.GetField("_shouldRestartCombatTimer", BindingFlagsAll);
         
+        etState = etPluginType?.GetProperty("State", BindingFlagsAll)?.GetMethod?.Invoke(null, []);
+        var etStateType = etPluginType?.Assembly.GetType("EngageTimer.Status.State");
+        inCombatProperty = etStateType?.GetProperty("InCombat", BindingFlagsAll);
+        
         Plugin.Log.Debug(
-            "EngageTimer: CombatStopwatch={CombatStopwatch} _combatTimeStart={CombatTimeStart} _combatTimeEnd={CombatTimeEnd}",
-            combatStopwatch, CombatStart, CombatEnd);
+            "EngageTimer: State={State} InCombat={InCombat} CombatStopwatch={CombatStopwatch} _combatTimeStart={CombatTimeStart} _combatTimeEnd={CombatTimeEnd}",
+            etState, InCombat, combatStopwatch, CombatStart, CombatEnd);
     }
 }

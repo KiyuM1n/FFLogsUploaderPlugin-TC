@@ -28,16 +28,16 @@ public partial class MainWindow
         splitLogGroupSameContent = plugin.Configuration.SplitLogGroupSameContent;
         engageTimerPerPhase = plugin.Configuration.EngageTimerPerPhase;
 
-        if (plugin.FfLogs.User != null)
+        if (plugin.FFLogs.User != null)
         {
             selectedGuildIndex =
-                plugin.FfLogs.User!.GuildSelectItems.FindIndex(item => item.Value ==
+                plugin.FFLogs.User!.GuildSelectItems.FindIndex(item => item.Value ==
                                                                        plugin.Configuration.SelectedGuildValue);
             selectedRegionIndex =
-                plugin.FfLogs.User.RegionOrServerSelectItems.FindIndex(item => item.Value ==
+                plugin.FFLogs.User.RegionOrServerSelectItems.FindIndex(item => item.Value ==
                                                                                plugin.Configuration.SelectedRegionValue);
             selectedVisibilityIndex =
-                plugin.FfLogs.User.ReportVisibilitySelectItems.FindIndex(item => item.Value ==
+                plugin.FFLogs.User.ReportVisibilitySelectItems.FindIndex(item => item.Value ==
                                                                              plugin.Configuration.SelectedVisibilityValue);
 
             if (selectedGuildIndex == -1) selectedGuildIndex = 0;
@@ -49,7 +49,7 @@ public partial class MainWindow
     private void DrawSettingsTab()
     {
         ImGui.Spacing();
-        if (plugin.FfLogs.User is { } user)
+        if (plugin.FFLogs.User is { } user)
         {
             ImGui.Text($"Logged in as {user.User.UserName}");  
             
@@ -57,8 +57,7 @@ public partial class MainWindow
             
             // Disable logging out if logging is in operation or if the parser has not finished loading
             // (either successfully or failed)
-            using (ImRaii.Disabled(AnyOperationInProgress ||
-                                   (!plugin.FfLogs.LogParser.Started && parserStartErrorMessage.IsNullOrWhitespace())))
+            using (ImRaii.Disabled(AnyOperationInProgress || !plugin.FFLogs.ParsersReady))
             {
                 if (ImGui.Button("Log out"))
                 {
@@ -66,7 +65,7 @@ public partial class MainWindow
                     password = string.Empty;
                     automaticLogin = false;
 
-                    Task.Run(plugin.FfLogs.LogoutAsync);
+                    Task.Run(() => plugin.FFLogs.LogoutAsync());
                 }
             }
         }
@@ -111,12 +110,15 @@ public partial class MainWindow
                 plugin.Configuration.EngageTimerPerPhase = engageTimerPerPhase;
                 plugin.Configuration.Save();
 
-                StartParser();
+                if (engageTimerPerPhase && !plugin.FFLogs.IsMonitoringActive)
+                    plugin.FFLogs.StartMetersLogCollectionAsync();
+                else if (!engageTimerPerPhase && plugin.FFLogs.IsMonitoringActive)
+                    plugin.FFLogs.StopMetersLogCollection();
             }
 
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             {
-                ImGui.SetTooltip("- Requires EngageTimer plugin installed (duh).\n- Only applies to things FFLogs consider to have phases (which are basically only ultimates)\n- Live logging must be active for the stopwatch to reset every phase.");
+                ImGui.SetTooltip("- Requires EngageTimer plugin installed.\n- Scans for logs from the live logging folder and parses them for phase changes.\n- Only applies to things FFLogs consider to have phases (which are basically only ultimates).");
             }
         }
     }

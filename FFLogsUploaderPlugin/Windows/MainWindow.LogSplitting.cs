@@ -80,7 +80,7 @@ public partial class MainWindow
             return;
         }
      
-        FfLogsManager.SplitLogFileAsync(logFilePathToSplit, splitLogGroupSameContent).ContinueWith(task =>
+        FFLogsManager.SplitLogFileAsync(logFilePathToSplit, splitLogGroupSameContent).ContinueWith(task =>
         {
             splitALogStatus = OperationStatus.Idle;
      

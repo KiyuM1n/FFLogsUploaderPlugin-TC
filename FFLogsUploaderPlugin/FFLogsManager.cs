@@ -14,20 +14,23 @@ using FFLogsUploaderPlugin.FFLogs;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Lumina.Excel.Sheets;
 using Lumina.Extensions;
-
 // ReSharper disable InconsistentNaming
 
 namespace FFLogsUploaderPlugin;
 
-// TODO: Starting when duty starts might not be a great idea for dungeons?
-internal class FfLogsManager : IAsyncDisposable
+public class FFLogsManager : IAsyncDisposable
 {
-    private Plugin Plugin { get; init; }
-    internal DesktopClient DesktopClient { get; private set; }
-    internal LogParser LogParser { get; private set; }
-    internal LogParser MetersLogParser { get; private set; }
+    private readonly Plugin plugin;
+    internal readonly DesktopClient DesktopClient = new();
+    private readonly LogParser LogParser = new();
+    private readonly LogParser MetersLogParser = new(2);
     internal DesktopClient.LoginResponse? User { get; private set; }
-
+    
+    internal AggregateException? LoginError { get; private set; }
+    internal bool IsLoggingIn { get; private set; }
+    internal AggregateException? ParsersError { get; private set; }
+    internal bool ParsersReady => LogParser.Started && MetersLogParser.Started;
+    
     private CancellationTokenSource? liveLogCts;
     private Task? liveLogTask;
     private volatile bool isStoppingLiveLogging;
@@ -35,29 +38,46 @@ internal class FfLogsManager : IAsyncDisposable
     
     public bool IsLiveLogging => liveLogTask is { IsCompleted: false };
     
+    public event EventHandler? LiveLoggingStarted;
     public event EventHandler<string>? LiveLoggingReportCreated;
     public event EventHandler<string>? LiveLoggingProgress;
     public event EventHandler<AggregateException?>? LiveLoggingEnded;
 
-    internal FfLogsManager(Plugin plugin)
+    private CancellationTokenSource? monitorCts;
+    private Task? monitorTask;
+    internal bool IsMonitoringActive => monitorTask is { IsCompleted: false };
+    internal TimeSpan FightDuration { get; private set; } = TimeSpan.Zero;
+    internal TimeSpan SegmentDuration { get; private set; } = TimeSpan.Zero;
+    
+    public FFLogsManager(Plugin plugin)
     {
-        Plugin = plugin;
-        DesktopClient = new DesktopClient();
-        LogParser = new LogParser();
-        MetersLogParser = new LogParser(2);
-
+        this.plugin = plugin;
+        
         liveLogProgress = new Progress<string>();
         liveLogProgress.ProgressChanged += (_, s) => OnLiveLoggingProgress(s);
-
+        
         Plugin.ClientState.ZoneInit += OnZoneInit;
         Plugin.DutyState.DutyWiped += OnDutyWipe;
+    }
+
+    public Task InitAsync(CancellationToken token = default)
+    {
+        return Task.Run(async () =>
+        {
+            await LoginFromConfigurationAsync(token);
+
+            if (User != null)
+                await StartParsersAsync(false, true, true, token);
+
+            if (plugin.Configuration.EngageTimerPerPhase && MetersLogParser.Started)
+                _ = StartMetersLogCollectionAsync();
+        }, token);
     }
     
     public async ValueTask DisposeAsync()
     {
-        liveLogCts?.Cancel();
-        liveLogCts?.Dispose();
-        liveLogCts = null;
+        StopLiveLogging();
+        StopMetersLogCollection();
 
         if (liveLogTask is { IsCompleted: false } llTask)
         {
@@ -76,59 +96,76 @@ internal class FfLogsManager : IAsyncDisposable
             }
         }
 
-        Plugin.ClientState.ZoneInit -= OnZoneInit;
         Plugin.DutyState.DutyWiped -= OnDutyWipe;
+        Plugin.ClientState.ZoneInit -= OnZoneInit;
         User = null;
-        LogParser.Dispose();
+
         MetersLogParser.Dispose();
+        LogParser.Dispose();
         DesktopClient.Dispose();
         
         GC.SuppressFinalize(this);
     }
-
-    internal async Task<DesktopClient.LoginResponse> LoginAsync(string email, string password, bool automaticLogin)
+    
+    internal async Task<DesktopClient.LoginResponse> LoginAsync(
+        string email, string password, bool automaticLogin, CancellationToken token = default)
     {
-        if (email.IsNullOrWhitespace())
-            throw new ArgumentException("email cannot be empty", nameof(email));
-
-        if (password.IsNullOrWhitespace())
-            throw new ArgumentException("password cannot be empty", nameof(password));
-
-        User = await DesktopClient.LoginAsync(email, password);
-        
-        if (automaticLogin)
+        IsLoggingIn = true;
+        LoginError = null;
+        try
         {
-            Plugin.Configuration.FfLogsEmail = email;
-            Plugin.Configuration.FfLogsPassword = password;
+            if (email.IsNullOrWhitespace())
+                throw new ArgumentException("email cannot be empty", nameof(email));
+
+            if (password.IsNullOrWhitespace())
+                throw new ArgumentException("password cannot be empty", nameof(password));
+
+            User = await DesktopClient.LoginAsync(email, password, token);
+
+            if (automaticLogin)
+            {
+                plugin.Configuration.FfLogsEmail = email;
+                plugin.Configuration.FfLogsPassword = password;
+            }
+            else
+            {
+                plugin.Configuration.FfLogsEmail = string.Empty;
+                plugin.Configuration.FfLogsPassword = string.Empty;
+            }
+
+            plugin.Configuration.FfLogsAutomaticLogin = automaticLogin;
+            plugin.Configuration.Save();
+
+            return User;
         }
-        else
+        catch (Exception e)
         {
-            Plugin.Configuration.FfLogsEmail = string.Empty;
-            Plugin.Configuration.FfLogsPassword = string.Empty;
+            LoginError = new AggregateException(e);
+            throw;
+        } 
+        finally
+        {
+            IsLoggingIn = false;
         }
-
-        Plugin.Configuration.FfLogsAutomaticLogin = automaticLogin;
-        Plugin.Configuration.Save();
-
-        return User;
     }
-
-    internal async Task<DesktopClient.LoginResponse?> AutomaticLoginAsync()
+    
+    internal async Task<DesktopClient.LoginResponse?> LoginFromConfigurationAsync(CancellationToken token = default)
     {
-        if (!Plugin.Configuration.FfLogsAutomaticLogin)
+        if (!plugin.Configuration.FfLogsAutomaticLogin)
             return null;
 
         return await LoginAsync(
-            Plugin.Configuration.FfLogsEmail,
-            Plugin.Configuration.FfLogsPassword,
-            Plugin.Configuration.FfLogsAutomaticLogin);
+                   plugin.Configuration.FfLogsEmail,
+                   plugin.Configuration.FfLogsPassword,
+                   plugin.Configuration.FfLogsAutomaticLogin,
+                   token);
     }
-
-    internal async Task LogoutAsync()
+    
+    internal async Task LogoutAsync(CancellationToken token = default)
     {
         try
         {
-            await DesktopClient.LogoutAsync();
+            await DesktopClient.LogoutAsync(token);
         }
         catch (Exception e)
         {
@@ -139,32 +176,53 @@ internal class FfLogsManager : IAsyncDisposable
         {
             User = null;
         
-            Plugin.Configuration.FfLogsEmail = string.Empty;
-            Plugin.Configuration.FfLogsPassword = string.Empty;
-            Plugin.Configuration.FfLogsAutomaticLogin = false;
-            Plugin.Configuration.Save();
+            plugin.Configuration.FfLogsEmail = string.Empty;
+            plugin.Configuration.FfLogsPassword = string.Empty;
+            plugin.Configuration.FfLogsAutomaticLogin = false;
+            plugin.Configuration.Save();
         }
     }
-
-    internal async Task StartParserAsync(bool gameContentDetectionEnabled, bool metersEnabled, bool liveFightDataEnabled)
+    
+    internal Task StartParsersAsync(
+        bool gameContentDetectionEnabled, bool metersEnabled, bool liveFightDataEnabled, CancellationToken token = default)
     {
-        var script = await DesktopClient.DownloadParserScript(LogParser.Id, gameContentDetectionEnabled, false, false);
-        var script2 = await DesktopClient.DownloadParserScript(MetersLogParser.Id, gameContentDetectionEnabled, metersEnabled, liveFightDataEnabled);
+        ParsersError = null;
 
-        await LogParser.StartAsync(gameContentDetectionEnabled, false, false, script);
-        await MetersLogParser.StartAsync(gameContentDetectionEnabled, metersEnabled, liveFightDataEnabled, script2);
+        return Task.Run(async () =>
+        {
+            var script = await DesktopClient.DownloadParserScript(
+                             LogParser.Id, gameContentDetectionEnabled, false, false, token);
+            var script2 = await DesktopClient.DownloadParserScript(
+                              MetersLogParser.Id, gameContentDetectionEnabled, metersEnabled, liveFightDataEnabled,
+                              token);
+
+            await LogParser.StartAsync(gameContentDetectionEnabled, false, false, script, token);
+            await MetersLogParser.StartAsync(gameContentDetectionEnabled, metersEnabled, liveFightDataEnabled, script2,
+                                             token);
+        }, token).ContinueWith(t => ParsersError = t.Exception, token);
     }
     
-    internal Task StartLiveLoggingAsync(string logFolder,
+    private Task StartLiveLoggingAsync(string logFolder,
                                         long region,
                                         long visibility,
                                         long? guildId = null,
                                         string description = "",
                                         bool includeEntireFileInReport = false)
     {
+        if (liveLogCts is { IsCancellationRequested: false })
+            throw new InvalidOperationException("Live logging is already running.");
+        
         liveLogCts = new CancellationTokenSource();
         liveLogTask = Task.Run(async () =>
         {
+            if (logFolder.IsNullOrWhitespace())
+                throw new ArgumentException("Path to log folder is missing.", nameof(logFolder));
+
+            if (!Directory.Exists(logFolder))
+                throw new ArgumentException("Specified log folder does not exist, or is a file.", nameof(logFolder));
+            
+            OnLiveLoggingStarted();
+            
             // This is a bit of a hack, but since we do a lot of serialization between the log parser in V8 and the
             // .NET code, there is a lot of GC pressure. While this has also been alleviated with changes in other places,
             // setting this to SustainedLowLatency during live logging prevents the game from stuttering badly during
@@ -175,11 +233,7 @@ internal class FfLogsManager : IAsyncDisposable
 
             try
             {
-                var logUploader = new LogUploader(
-                    DesktopClient,
-                    LogParser,
-                    Plugin.Configuration.EngageTimerPerPhase ? MetersLogParser : null,
-                    Plugin.Configuration.EngageTimerPerPhase ? Plugin.EngageTimer : null);
+                var logUploader = new LogUploader(DesktopClient, LogParser);
 
                 await logUploader.StartLiveLogAsync(logFolder, region, visibility, guildId, description,
                                                     includeEntireFileInReport, liveLogProgress,
@@ -194,16 +248,16 @@ internal class FfLogsManager : IAsyncDisposable
 
         return liveLogTask;
     }
-    
-    internal Task StartLiveLoggingAsync(bool includeEntireFileInReport)
-    {
-        var logFolder = Plugin.Configuration.LiveLogFolder;
-        var region = Plugin.Configuration.SelectedRegionValue;
-        var visibility = Plugin.Configuration.SelectedVisibilityValue;
-        long? guildId = Plugin.Configuration.SelectedGuildValue == -1
-                      ? null : Plugin.Configuration.SelectedGuildValue;
 
-        return StartLiveLoggingAsync(logFolder, region, visibility, guildId, string.Empty, includeEntireFileInReport);
+    internal Task StartLiveLoggingAsync(string description = "", bool includeEntireFileInReport = false)
+    {
+        var guildId = plugin.Configuration.SelectedGuildValue;
+
+        return StartLiveLoggingAsync(plugin.Configuration.LiveLogFolder,
+                                     plugin.Configuration.SelectedRegionValue,
+                                     plugin.Configuration.SelectedVisibilityValue,
+                                     guildId == -1 ? null : guildId,
+                                     description, includeEntireFileInReport);
     }
     
     internal void StopLiveLogging()
@@ -213,6 +267,11 @@ internal class FfLogsManager : IAsyncDisposable
         liveLogCts = null;
     }
 
+    protected virtual void OnLiveLoggingStarted()
+    {
+        LiveLoggingStarted?.Invoke(this, EventArgs.Empty);
+    }
+    
     protected virtual void OnLiveLoggingReportCreated(string reportCode)
     {
         LiveLoggingReportCreated?.Invoke(this, reportCode);
@@ -228,6 +287,83 @@ internal class FfLogsManager : IAsyncDisposable
         LiveLoggingEnded?.Invoke(this, exception);
     }
 
+    internal Task StartMetersLogCollectionAsync()
+    {
+        monitorCts = new CancellationTokenSource();
+        return monitorTask = Task.Run(async () =>
+         {
+             var liveLogFolder = plugin.Configuration.LiveLogFolder;
+
+             if (liveLogFolder.IsNullOrWhitespace() || !Directory.Exists(liveLogFolder))
+                 return;
+             
+             Plugin.Log.Debug("Starting meters log collection, LogFolder={LogFolder}", liveLogFolder);
+
+             var logReader = new DirectoryLogReader(liveLogFolder);
+             var lastCollect = DateTime.MinValue;
+
+             await MetersLogParser.ClearAsync();
+             await MetersLogParser.SetLiveLoggingStartTimeAsync(
+                 DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+             await foreach (var chunk in logReader.IterateChunksAsync(token: monitorCts.Token))
+             {
+                 if (chunk == null)
+                     continue;
+                 
+                 await MetersLogParser.ParseLinesAsync(
+                     chunk.Lines, plugin.Configuration.SelectedRegionValue, [], false,
+                     chunk.EndPosition);
+
+                 var current = DateTime.UtcNow;
+
+                 if (current - lastCollect < TimeSpan.FromMilliseconds(500))
+                     continue;
+
+                 lastCollect = current;
+                 var meters = await MetersLogParser.CollectMetersAsync();
+                 var fight = meters.Fights.LastOrDefault();
+
+                 if (fight is null or { Segments: [] })
+                     continue;
+                     
+                 var segment = fight.Segments.MaxBy(s => s.StartTime);
+
+                 // Plugin.Log.Debug("[LogUploader] Zone={ZoneName} ", segment?.Zone.Name);
+
+                 if (segment is not { State: "inprogress" })
+                     continue;
+                     
+                 var segmentStartTime = DateTimeOffset
+                     .FromUnixTimeMilliseconds(segment.StartTime)
+                     .LocalDateTime;
+                 var combatStart = plugin.EngageTimer.CombatStart;
+
+                 if (segmentStartTime <= combatStart)
+                     continue;
+
+                 Plugin.Log.Debug("EngageTimer: CombatStart Original={OriginalStart} Override={OverrideStart}",
+                     combatStart, segmentStartTime);
+                 plugin.EngageTimer.CombatStart = segmentStartTime;
+                 plugin.EngageTimer.CombatEnd =
+                     new DateTime(Math.Max(segmentStartTime.Ticks, DateTime.Now.Ticks));
+                 plugin.EngageTimer.InCombat = true;
+             }
+         }, monitorCts.Token)
+         .ContinueWith(t =>
+         {
+             if (t.Exception is { } e)
+                 Plugin.Log.Error(e, "Meters log collection failed");
+         }, monitorCts.Token);
+    }
+
+    internal void StopMetersLogCollection()
+    {
+        monitorCts?.Cancel();
+        monitorCts?.Dispose();
+        monitorCts = null;
+    }
+    
     internal Task<string> UploadLogFileAsync(
         string logFilePath,
         long region,
@@ -364,6 +500,9 @@ internal class FfLogsManager : IAsyncDisposable
         }
     }
 
+    internal Task<long> GetParserVersionAsync() => LogParser.GetParserVersionAsync();
+    internal Task CallWipeAsync() => LogParser.CallWipeAsync();
+    
     // ZoneInit
     // - Valid duty and live logging is not active -> start live logging
     // - No duty and live logging is active -> stop live logging
@@ -402,15 +541,15 @@ internal class FfLogsManager : IAsyncDisposable
         // - Valid content type for parsing
         //   - https://exd.camora.dev/sheet/ContentType
         //   - 1 = Dungeons, 3 = Trials, 4 = Raids, 6 = Ultimate Raids, 7 = Chaotic Alliance Raid
-        if (Plugin.Configuration.StartLiveLoggingWhenDutyStarts
+        if (plugin.Configuration.StartLiveLoggingWhenDutyStarts
             && LogParser.Started
             && !IsLiveLogging
             && !Plugin.DutyState.IsDutyStarted
             && cfCondition?.ContentType.ValueNullable is { Unknown2: 1 or 3 or 4 or 6 or 7 })
         {
-            Plugin.MainWindow.StartLiveLogging(true); // Call it there to also handle UI state
+            StartLiveLoggingAsync();
         }
-        else if (Plugin.Configuration.StopLiveLoggingWhenDutyEnds
+        else if (plugin.Configuration.StopLiveLoggingWhenDutyEnds
                  && LogParser.Started
                  && IsLiveLogging
                  && !isStoppingLiveLogging
@@ -431,7 +570,7 @@ internal class FfLogsManager : IAsyncDisposable
 
     private void OnDutyWipe(IDutyStateEventArgs args)
     {
-        if (Plugin.Configuration.AutomaticallyCallDutyWipe && LogParser.Started && IsLiveLogging)
+        if (plugin.Configuration.AutomaticallyCallDutyWipe && LogParser.Started && IsLiveLogging)
             Task.Run(LogParser.CallWipeAsync).ContinueWith(task =>
             {
                 if (task.Exception == null)

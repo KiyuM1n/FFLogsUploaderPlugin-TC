@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.ClearScript;
@@ -31,7 +30,8 @@ public class LogParser(int id = 1) : IDisposable
     public int Id => id;
     public bool Started => parserReceiveMessage != null;
 
-    public async Task StartAsync(bool gameContentDetectionEnabled, bool metersEnabled, bool liveFightDataEnabled, string parserCode)
+    public async Task StartAsync(
+        bool gameContentDetectionEnabled, bool metersEnabled, bool liveFightDataEnabled, string parserCode, CancellationToken token = default)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         
@@ -94,7 +94,7 @@ public class LogParser(int id = 1) : IDisposable
                            };
                            """);
             parserReceiveMessage = engine.Script.__parserReceiveMessage;
-        }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, scheduler.ExclusiveScheduler);
+        }, token, TaskCreationOptions.DenyChildAttach, scheduler.ExclusiveScheduler);
     }
 
     private async Task<T> CallParserAsync<T>(ParserRequest request, string completedMessageType)
@@ -288,24 +288,6 @@ public class LogParser(int id = 1) : IDisposable
         disposed = true;
         parserReceiveMessage = null;
         engine.Dispose();
-
-        foreach (var dir in Directory.EnumerateDirectories(Path.GetTempPath(), "????????.???"))
-        {
-            var nativeLib = Path.Combine(dir, "ClearScriptV8.win-x64.dll");
-
-            if (!File.Exists(nativeLib))
-                continue;
-
-            if (Directory.EnumerateFileSystemEntries(dir).Count() > 1)
-                continue;
-
-            try
-            {
-                Directory.Delete(dir, recursive: true);
-            }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
         
         GC.SuppressFinalize(this);
     }
@@ -428,9 +410,9 @@ public class LogParser(int id = 1) : IDisposable
         public long StartTime { get; set; }
         public long EndTime { get; set; }
         public long Downtime { get; set; }
-        // friendlyDamage
+        public required MeterActorMap<MeterFriendlyDamageActor> FriendlyDamage { get; set; }
         // friendlyHealing
-        // deaths
+        public required MeterActorMap<MeterDeath> Deaths { get; set; }
         
         // this is empty for fight segments, but it still exists in the data
         public List<MeterFightSegment> Segments { get; set; } = [];
@@ -462,5 +444,58 @@ public class LogParser(int id = 1) : IDisposable
         public long Id { get; set; }
         public required string Name { get; set; }
         public required string Type { get; set; }
+    }
+
+    public class MeterDamage
+    {
+        public long Id { get; set; }
+        public required string Name { get; set; }
+        public long Amount { get; set; }
+        // public double Over { get; set; } // not sure what this is
+        public double AmountTaken { get; set; }
+        public double SingleTargetAmountTaken { get; set; }
+        public double AmountGiven { get; set; }
+        public required MeterHitDetails HitDetails { get; set; }
+    }
+    
+    public class MeterDamageAbility : MeterDamage 
+    {
+        public long Type { get; set; }
+    }
+
+    public class MeterDamageActor : MeterDamage
+    {
+        public required string FullType { get; set; }
+    }
+    
+    public class MeterFriendlyDamageActor : MeterDamageActor
+    {
+        public Dictionary<string, MeterDamageActor> Targets = [];
+        public Dictionary<string, MeterDamageAbility> Abilities = [];
+    }
+
+    public class MeterDeath
+    {
+        public long TimeOffset;
+    }
+
+    public class MeterActorDeath
+    {
+        public List<MeterDeath> Deaths { get; set; } = [];
+    }
+
+    public class MeterActorMap<T>
+    {
+        public Dictionary<string, T> Actors = [];
+    }
+
+    public class MeterHitDetails
+    {
+        public long CriticalCount { get; set; }
+        public long DirectHitCount { get; set; }
+        public long CriticalDirectHitCount { get; set; }
+        public long HitCount { get; set; }
+        public long MaxHit { get; set; }
+        public long MinHit { get; set; }
     }
 }
