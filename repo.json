@@ -18,9 +18,9 @@
         "TestingDalamudApiLevel": 13,
         "DownloadCount": 0,
         "LastUpdate": 0,
-        "DownloadLinkInstall": "https://github.com/KiyuM1n/FFLogsUploaderPlugin-TC/releases/download/v0.0.13.1/latest.zip",
-        "DownloadLinkUpdate": "https://github.com/KiyuM1n/FFLogsUploaderPlugin-TC/releases/download/v0.0.13.1/latest.zip",
-        "DownloadLinkTesting": "https://github.com/KiyuM1n/FFLogsUploaderPlugin-TC/releases/download/v0.0.13.1/latest.zip",
+        "DownloadLinkInstall": "https://cdn.jsdelivr.net/gh/KiyuM1n/FFLogsUploaderPlugin-TC@dist/v0.0.13.1/latest.zip",
+        "DownloadLinkUpdate": "https://cdn.jsdelivr.net/gh/KiyuM1n/FFLogsUploaderPlugin-TC@dist/v0.0.13.1/latest.zip",
+        "DownloadLinkTesting": "https://cdn.jsdelivr.net/gh/KiyuM1n/FFLogsUploaderPlugin-TC@dist/v0.0.13.1/latest.zip",
         "LoadPriority": 0,
         "AcceptsFeedback": false
     }
