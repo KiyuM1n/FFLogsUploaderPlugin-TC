@@ -30,11 +30,26 @@
 - 回報的客戶端版本從 9.5.0 改成 9.6.140
 - parser 啟動失敗時把錯誤寫進 `/xllog`，原本只會停在 loading 畫面
 
+**修正區域設定**
+- 上傳時使用的區域是從設定檔讀取的，預設值是 1 (NA)，但 `cn.fflogs.com` 沒有這個選項。結果畫面上顯示繁中服，報告和解析實際用的卻是 NA，即時紀錄因此一場戰鬥都抓不到。
+- 現在登入後（包含自動登入）會檢查設定檔裡的公會、區域、公開設定，如果伺服器沒有提供這個選項，就改成畫面上顯示的那一項。
+
+**診斷**
+- 自動登入、parser 下載（HTTP 狀態與耗時）、parser 啟動、即時紀錄報告使用的區域與檔案，都會寫進 `/xllog`
+- parser 下載超過 60 秒會直接失敗，不會一直卡在載入畫面
+
+**繁體中文介面**
+- 視窗、分頁、按鈕、選項、說明、進度與錯誤訊息、聊天訊息、通知、指令說明都改成繁體中文
+- `/xllog` 中的 Dalamud 日誌維持英文，方便搜尋，也方便跟原作比對
+
 ## 目前狀態
 
 - [x] 可以在繁中服 Dalamud（API 13）載入，也可以登入
-- [ ] parser 的 `gameVersionId` 修正：**待驗證**
-- [ ] 上傳 / 即時紀錄：待驗證
+- [x] parser 可以正常載入
+- [x] 即時紀錄可以抓到戰鬥並上傳
+- [ ] 上傳 / 分割現有紀錄檔：尚未測試
+
+如果卡在「正在載入 parser...」，請停用後重新啟用外掛。FF Logs 伺服器偶爾會沒有回應，超過 60 秒外掛就會顯示錯誤。
 
 目前還沒有提供 custom repo 或編譯好的 release。repo 裡的 `repo.json` 是原作留下的，仍然指向原作的版本，**請不要把它加進 Dalamud**。
 
@@ -54,7 +69,7 @@ dotnet build FFLogsUploaderPlugin/FFLogsUploaderPlugin.csproj -c Release
 1. 把 `latest.zip` 解壓縮到一個固定的資料夾。所有檔案都要保留，包含 `runtimes\win-x64\native\ClearScriptV8.win-x64.dll`。
 2. 遊戲內輸入 `/xlsettings`，到「實驗性功能」→「開發外掛位置」，加入 `FFLogsUploaderPlugin.dll` 的完整路徑。
 3. 在 `/xlplugins` 的開發工具分頁啟用外掛，然後用 `/pfflogs` 開啟主視窗。
-4. 登入後，區域 (Region) 請選擇繁中服對應的選項。
+4. 登入後確認區域 (Region) 是繁中服對應的選項。只有選擇「個人紀錄」時才會顯示區域選單。
 
 ## 授權
 
@@ -62,4 +77,4 @@ dotnet build FFLogsUploaderPlugin/FFLogsUploaderPlugin.csproj -c Release
 
 ---
 
-*English: Fork of beer-psi/FFLogsUploaderPlugin rebuilt for the Traditional Chinese (TC) client's Dalamud API 13, targeting `cn.fflogs.com` with `gameVersionId=ff-live-cn`. Unofficial; not affiliated with FF Logs or the original author. AGPL-3.0.*
+*English: Fork of beer-psi/FFLogsUploaderPlugin rebuilt for the Traditional Chinese (TC) client's Dalamud API 13, targeting `cn.fflogs.com` with `gameVersionId=ff-live-cn`, with a Traditional Chinese UI. Unofficial; not affiliated with FF Logs or the original author. AGPL-3.0.*
