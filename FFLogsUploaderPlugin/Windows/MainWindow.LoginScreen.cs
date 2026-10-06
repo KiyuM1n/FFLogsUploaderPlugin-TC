@@ -55,7 +55,7 @@ public partial class MainWindow
         if (!loginErrorMessage.IsNullOrWhitespace())
         {
             ImGui.Spacing();
-            ImGui.TextColored(ImGuiColors.ErrorForeground, loginErrorMessage);
+            ImGui.TextColored(ImGuiColors.DalamudRed, loginErrorMessage);
         }
     }
 

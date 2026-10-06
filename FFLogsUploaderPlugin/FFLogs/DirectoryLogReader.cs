@@ -59,7 +59,7 @@ internal class DirectoryLogReader
             {
                 yield return null;
 
-                if (await Task.DelayOrCancel(TimeSpan.FromSeconds(1), token))
+                if (await Extensions.TaskExtensions.DelayOrCancel(TimeSpan.FromSeconds(1), token))
                     yield break;
                 
                 continue;
@@ -73,7 +73,7 @@ internal class DirectoryLogReader
                 yield return chunk;
             }
 
-            if (await Task.DelayOrCancel(TimeSpan.FromMilliseconds(500), token))
+            if (await Extensions.TaskExtensions.DelayOrCancel(TimeSpan.FromMilliseconds(500), token))
                 yield break;
         }
     }

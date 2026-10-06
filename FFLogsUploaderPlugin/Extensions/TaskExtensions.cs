@@ -6,19 +6,16 @@ namespace FFLogsUploaderPlugin.Extensions;
 
 public static class TaskExtensions
 {
-    extension(Task)
+    public static async Task<bool> DelayOrCancel(TimeSpan delay, CancellationToken token)
     {
-        public static async Task<bool> DelayOrCancel(TimeSpan delay, CancellationToken token)
+        try
         {
-            try
-            {
-                await Task.Delay(delay, token);
-                return false;
-            }
-            catch (OperationCanceledException)
-            {
-                return true;
-            }
+            await Task.Delay(delay, token);
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            return true;
         }
     }
 }

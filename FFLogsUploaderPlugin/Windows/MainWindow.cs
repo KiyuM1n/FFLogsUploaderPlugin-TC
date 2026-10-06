@@ -124,8 +124,8 @@ public partial class MainWindow : Window, IDisposable
         {
             var msg = e.InnerExceptions.FirstOrDefault(e).Message;
             
-            ImGui.TextColored(ImGuiColors.ErrorForeground, $"Parser failed to load, please check Dalamud logs (/xllog): {msg}");
-            ImGui.TextColored(ImGuiColors.ErrorForeground, "Disable and re-enable the plugin to try again.");
+            ImGui.TextColored(ImGuiColors.DalamudRed, $"Parser failed to load, please check Dalamud logs (/xllog): {msg}");
+            ImGui.TextColored(ImGuiColors.DalamudRed, "Disable and re-enable the plugin to try again.");
             return false;
         } 
         

@@ -508,8 +508,8 @@ public class FFLogsManager : IAsyncDisposable
     // - No duty and live logging is active -> stop live logging
     private void OnZoneInit(ZoneInitEventArgs args)
     {
-        var cfCondition = args.ContentFinderCondition.ValueNullable;
-        var territoryType = args.TerritoryType.ValueNullable;
+        ContentFinderCondition? cfCondition = args.ContentFinderCondition;
+        TerritoryType? territoryType = args.TerritoryType;
 
         if (territoryType is null or { IsPvpZone: true })
         {
@@ -568,7 +568,7 @@ public class FFLogsManager : IAsyncDisposable
         }
     }
 
-    private void OnDutyWipe(IDutyStateEventArgs args)
+    private void OnDutyWipe(object? sender, ushort territory)
     {
         if (plugin.Configuration.AutomaticallyCallDutyWipe && LogParser.Started && IsLiveLogging)
             Task.Run(LogParser.CallWipeAsync).ContinueWith(task =>

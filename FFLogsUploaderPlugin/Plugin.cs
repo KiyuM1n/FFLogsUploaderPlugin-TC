@@ -14,7 +14,7 @@ using FFLogsUploaderPlugin.Windows;
 namespace FFLogsUploaderPlugin;
 
 // ReSharper disable once ClassNeverInstantiated.Global
-public sealed class Plugin : IAsyncDalamudPlugin
+public sealed class Plugin : IDalamudPlugin
 {
     [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
@@ -45,6 +45,8 @@ public sealed class Plugin : IAsyncDalamudPlugin
         MainWindow = new MainWindow(this);
 
         PluginInterface.ActivePluginsChanged += OnActivePluginsChanged;
+
+        LoadAsync(CancellationToken.None);
     }
     
     public Task LoadAsync(CancellationToken cancellationToken)
@@ -72,7 +74,9 @@ public sealed class Plugin : IAsyncDalamudPlugin
         return Task.CompletedTask;
     }
 
-    public async ValueTask DisposeAsync()
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    private async ValueTask DisposeAsync()
     {
         // Unregister all actions to not leak anything during disposal of plugin
         PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
