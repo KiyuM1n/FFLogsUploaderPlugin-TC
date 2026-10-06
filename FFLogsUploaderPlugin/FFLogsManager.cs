@@ -199,7 +199,12 @@ public class FFLogsManager : IAsyncDisposable
             await LogParser.StartAsync(gameContentDetectionEnabled, false, false, script, token);
             await MetersLogParser.StartAsync(gameContentDetectionEnabled, metersEnabled, liveFightDataEnabled, script2,
                                              token);
-        }, token).ContinueWith(t => ParsersError = t.Exception, token);
+        }, token).ContinueWith(t =>
+        {
+            if (t.Exception != null)
+                Plugin.Log.Error(t.Exception, "Failed to start parsers");
+            return ParsersError = t.Exception;
+        }, token);
     }
     
     private Task StartLiveLoggingAsync(string logFolder,

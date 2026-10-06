@@ -100,13 +100,13 @@ public partial class MainWindow
             
             ImGui.SameLine();
             if (ImGui.Button("Copy report link"))
-                ImGui.SetClipboardText($"https://www.fflogs.com/reports/{liveLogReportCode}");
+                ImGui.SetClipboardText($"https://cn.fflogs.com/reports/{liveLogReportCode}");
 
             ImGui.SameLine();
             if (ImGui.Button("Open report link"))
                 Task.Run(() => Process.Start(new ProcessStartInfo
                 {
-                    FileName = $"https://www.fflogs.com/reports/{liveLogReportCode}", UseShellExecute = true
+                    FileName = $"https://cn.fflogs.com/reports/{liveLogReportCode}", UseShellExecute = true
                 }));
 
             ImGui.SameLine();

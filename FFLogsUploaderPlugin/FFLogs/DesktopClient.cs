@@ -15,8 +15,9 @@ namespace FFLogsUploaderPlugin.FFLogs;
 
 public class DesktopClient : IDisposable
 {
-    private const string BaseUrl = "https://www.fflogs.com";
-    private const string ArchonAppLiteVersion = "9.5.0";
+    private const string BaseUrl = "https://cn.fflogs.com";
+    private const string ArchonAppLiteVersion = "9.6.140";
+    private const string GameVersionId = "ff-live-cn";
     private const string UserAgent =
         $"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ArchonAppLite/{ArchonAppLiteVersion} Chrome/138.0.7204.251 Electron/37.9.0 Safari/537.36";
     
@@ -166,13 +167,14 @@ public class DesktopClient : IDisposable
     {
         // ReSharper disable once UseStringInterpolation
         var uri = string.Format(
-            "{0}/desktop-client/parser?id={1}&ts={2}&gameContentDetectionEnabled={3}&metersEnabled={4}&liveFightDataEnabled={5}",
+            "{0}/desktop-client/parser?id={1}&ts={2}&gameContentDetectionEnabled={3}&metersEnabled={4}&liveFightDataEnabled={5}&gameVersionId={6}",
             BaseUrl,
             id,
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             gameContentDetectionEnabled.ToString().ToLowerInvariant(),
             metersEnabled.ToString().ToLowerInvariant(),
-            liveFightDataEnabled.ToString().ToLowerInvariant()
+            liveFightDataEnabled.ToString().ToLowerInvariant(),
+            GameVersionId
         );
         using var requestMessage = new HttpRequestMessage(HttpMethod.Get, uri);
         requestMessage.Headers.Add("upgrade-insecure-requests", "1");
