@@ -43,6 +43,36 @@ public partial class MainWindow
             if (selectedGuildIndex == -1) selectedGuildIndex = 0;
             if (selectedRegionIndex == -1) selectedRegionIndex = 0;
             if (selectedVisibilityIndex == -1) selectedVisibilityIndex = 0;
+
+            // Uploads read these values from the configuration, not from the combos, so a saved value that the
+            // server no longer offers (e.g. the default NA region on cn.fflogs.com) must be replaced by what the
+            // combo shows.
+            var user = plugin.FFLogs.User;
+            var changed = false;
+
+            if (user.GuildSelectItems.Count > 0
+                && plugin.Configuration.SelectedGuildValue != user.GuildSelectItems[selectedGuildIndex].Value)
+            {
+                plugin.Configuration.SelectedGuildValue = user.GuildSelectItems[selectedGuildIndex].Value;
+                changed = true;
+            }
+
+            if (user.RegionOrServerSelectItems.Count > 0
+                && plugin.Configuration.SelectedRegionValue != user.RegionOrServerSelectItems[selectedRegionIndex].Value)
+            {
+                plugin.Configuration.SelectedRegionValue = user.RegionOrServerSelectItems[selectedRegionIndex].Value;
+                changed = true;
+            }
+
+            if (user.ReportVisibilitySelectItems.Count > 0
+                && plugin.Configuration.SelectedVisibilityValue != user.ReportVisibilitySelectItems[selectedVisibilityIndex].Value)
+            {
+                plugin.Configuration.SelectedVisibilityValue = user.ReportVisibilitySelectItems[selectedVisibilityIndex].Value;
+                changed = true;
+            }
+
+            if (changed)
+                plugin.Configuration.Save();
         }
     }
     

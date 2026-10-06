@@ -21,7 +21,8 @@ public partial class MainWindow : Window, IDisposable
     private int selectedGuildIndex;
     private int selectedRegionIndex;
     private int selectedVisibilityIndex;
-    
+    private object? syncedUser;
+
     private long SelectedGuildValue => plugin.FFLogs.User?.GuildSelectItems[selectedGuildIndex].Value ?? 0L;
     private long SelectedRegionValue => plugin.FFLogs.User?.RegionOrServerSelectItems[selectedRegionIndex].Value ?? 0L;
     private long SelectedVisibilityValue =>
@@ -77,6 +78,14 @@ public partial class MainWindow : Window, IDisposable
         {
             DrawLoginScreen();
             return;
+        }
+
+        // Automatic login happens in the background without going through DoLoginContinuation, so the combos and the
+        // values saved in the configuration have to be synced against the new user's select items here.
+        if (!ReferenceEquals(syncedUser, plugin.FFLogs.User))
+        {
+            syncedUser = plugin.FFLogs.User;
+            SetOptionsFromConfiguration();
         }
 
         fileDialogManager.Draw();
