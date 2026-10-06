@@ -27,7 +27,7 @@ public partial class MainWindow
         using (ImRaii.Disabled(AnyOperationInProgress))
         {
             ImGui.Spacing();
-            ImGui.Text("Folder ACT writes log files to:");
+            ImGui.Text("ACT / IINACT 紀錄檔資料夾：");
         
             ImGui.SetNextItemWidth(-80);
             if (ImGui.InputText("##logFolder", ref logFolder))
@@ -43,8 +43,8 @@ public partial class MainWindow
             }
             
             ImGui.SameLine();
-            if (ImGui.Button("Browse##browseLogFolder"))
-                fileDialogManager.OpenFolderDialog("Select Log Folder",
+            if (ImGui.Button("瀏覽##browseLogFolder"))
+                fileDialogManager.OpenFolderDialog("選擇紀錄檔資料夾",
                                                    (success, path) =>
                                                    {
                                                        if (!success || path.IsNullOrWhitespace())
@@ -66,7 +66,7 @@ public partial class MainWindow
             DrawSharedUploadOptions();
 
             ImGui.Spacing();
-            if (ImGui.Checkbox("Include entire file in report", ref includeEntireFileInReport))
+            if (ImGui.Checkbox("將整個紀錄檔加入報告", ref includeEntireFileInReport))
             {
                 plugin.Configuration.IncludeEntireFileInReport = includeEntireFileInReport;
                 plugin.Configuration.Save();
@@ -74,14 +74,14 @@ public partial class MainWindow
 
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             {
-                ImGui.SetTooltip("Uploads the latest log file from the beginning; otherwise, only logs added\nsince starting live logging will be uploaded.");
+                ImGui.SetTooltip("從頭上傳最新的紀錄檔；未勾選時，只會上傳開始即時紀錄之後\n新增的內容。");
             }
         }
 
         // Keep this interactable if live logging is active so the user can stop it.
         ImGui.Spacing();
         if (DrawActionButtonAndMessages(
-                plugin.FFLogs.IsLiveLogging ? "Stop" : "Start",
+                plugin.FFLogs.IsLiveLogging ? "停止" : "開始",
                 uploadALogStatus == OperationStatus.InProgress || splitALogStatus == OperationStatus.InProgress,
                 liveLogProgressMessage,
                 liveLogErrorMessage)
@@ -96,21 +96,21 @@ public partial class MainWindow
         if (!liveLogReportCode.IsNullOrWhitespace())
         {
             ImGui.Spacing();
-            ImGui.Text("Report created.");
+            ImGui.Text("報告已建立。");
             
             ImGui.SameLine();
-            if (ImGui.Button("Copy report link"))
+            if (ImGui.Button("複製報告連結"))
                 ImGui.SetClipboardText($"https://cn.fflogs.com/reports/{liveLogReportCode}");
 
             ImGui.SameLine();
-            if (ImGui.Button("Open report link"))
+            if (ImGui.Button("開啟報告"))
                 Task.Run(() => Process.Start(new ProcessStartInfo
                 {
                     FileName = $"https://cn.fflogs.com/reports/{liveLogReportCode}", UseShellExecute = true
                 }));
 
             ImGui.SameLine();
-            if (ImGui.Button("Open XIVAnalysis"))
+            if (ImGui.Button("開啟 XIVAnalysis"))
                 Task.Run(() => Process.Start(new ProcessStartInfo
                 {
                     FileName = $"https://xivanalysis.com/fflogs/{liveLogReportCode}", UseShellExecute = true

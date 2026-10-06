@@ -19,31 +19,31 @@ public partial class MainWindow
     
     private void DrawLoginScreen()
     {
-        ImGui.Text("Log in to FFLogs");
+        ImGui.Text("登入 FF Logs");
         ImGui.Separator();
         ImGui.Spacing();
 
         using (ImRaii.Disabled(plugin.FFLogs.IsLoggingIn))
         {
             ImGui.SetNextItemWidth(-1);
-            if (ImGui.InputTextWithHint("Email##email", "Email", ref email,
+            if (ImGui.InputTextWithHint("電子郵件##email", "電子郵件", ref email,
                                         flags: ImGuiInputTextFlags.EnterReturnsTrue))
             {
                 DoLogin();
             }
         
             ImGui.SetNextItemWidth(-1);
-            if (ImGui.InputTextWithHint("Password##password", "Password", ref password,
+            if (ImGui.InputTextWithHint("密碼##password", "密碼", ref password,
                                         flags: ImGuiInputTextFlags.Password | ImGuiInputTextFlags.EnterReturnsTrue))
             {
                 DoLogin();
             }
         
-            ImGui.Checkbox("Automatically login", ref automaticLogin);
+            ImGui.Checkbox("自動登入", ref automaticLogin);
         
             ImGui.Spacing();
 
-            if (ImGui.Button(plugin.FFLogs.IsLoggingIn ? "Logging in..." : "Log in", new Vector2(-1, 30)))
+            if (ImGui.Button(plugin.FFLogs.IsLoggingIn ? "登入中..." : "登入", new Vector2(-1, 30)))
             {
                 DoLogin();
             }
@@ -63,7 +63,7 @@ public partial class MainWindow
     {
         if (email.IsNullOrWhitespace() || password.IsNullOrWhitespace())
         {
-            loginErrorMessage = "Email or password is missing.";
+            loginErrorMessage = "請輸入電子郵件和密碼。";
             return;
         }
         

@@ -21,14 +21,14 @@ public partial class MainWindow
         using (ImRaii.Disabled(AnyOperationInProgress))
         {
             ImGui.Spacing();
-            ImGui.Text("Log file to split:");
+            ImGui.Text("要分割的紀錄檔：");
             
             ImGui.SetNextItemWidth(-80);
             ImGui.InputText("##logFileToSplit", ref logFilePathToSplit);
             ImGui.SameLine();
-            if (ImGui.Button("Browse##browseLogFileToSplit"))
-                fileDialogManager.OpenFileDialog("Select Log File",
-                                                 "Log files{.log},All files{.*}",
+            if (ImGui.Button("瀏覽##browseLogFileToSplit"))
+                fileDialogManager.OpenFileDialog("選擇紀錄檔",
+                                                 "紀錄檔{.log},所有檔案{.*}",
                                                  (success, paths) =>
                                                  {
                                                      if (success && paths.Count > 0)
@@ -37,19 +37,19 @@ public partial class MainWindow
                                                  1,
                                                  GetDialogStartPath(logFilePathToSplit));
 
-            if (ImGui.Checkbox("Split when instanced content changes", ref splitLogGroupSameContent))
+            if (ImGui.Checkbox("依副本內容分割", ref splitLogGroupSameContent))
             {
                 plugin.Configuration.SplitLogGroupSameContent = splitLogGroupSameContent;
                 plugin.Configuration.Save();
             }
 
             ImGuiComponents.HelpMarker(
-                "Instead of the default behavior of splitting when area changes. For instance, when splitting a log file with Raid A -> Limsa -> Raid A -> Limsa -> Raid B, the default behavior would create 5 log files, one for each area, but this will only create two splits, one for Raid A and one for Raid B.");
+                "預設會在每次切換區域時分割。例如紀錄檔依序是 副本 A -> 利姆薩 -> 副本 A -> 利姆薩 -> 副本 B 時，預設會分成 5 個檔案（每個區域一個）；勾選後只會分成 2 個：副本 A 一個、副本 B 一個。");
         }
         
         ImGui.Spacing();
 
-        if (DrawActionButtonAndMessages("Split", AnyOperationInProgress, splitLogProgressMessage, splitLogErrorMessage))
+        if (DrawActionButtonAndMessages("分割", AnyOperationInProgress, splitLogProgressMessage, splitLogErrorMessage))
             DoSplitLogFile();
     }
     
@@ -62,21 +62,21 @@ public partial class MainWindow
         if (logFilePathToSplit.IsNullOrWhitespace())
         {
             splitALogStatus = OperationStatus.Idle;
-            splitLogErrorMessage = "Path to log file is missing.";
+            splitLogErrorMessage = "請指定紀錄檔路徑。";
             return;
         }
      
         if (Path.GetFileName(logFilePathToSplit).StartsWith("Split-"))
         {
             splitALogStatus = OperationStatus.Idle;
-            splitLogErrorMessage = "Cowardly refusing to split a split log file.";
+            splitLogErrorMessage = "這已經是分割過的紀錄檔，不會再分割。";
             return;
         }
      
         if (!File.Exists(logFilePathToSplit))
         {
             splitALogStatus = OperationStatus.Idle;
-            splitLogErrorMessage = "Log file does not exist, or is not a file.";
+            splitLogErrorMessage = "紀錄檔不存在，或不是檔案。";
             return;
         }
      
@@ -97,7 +97,7 @@ public partial class MainWindow
             }
             else
             {
-                splitLogProgressMessage = "Successfully split log file";
+                splitLogProgressMessage = "紀錄檔分割完成";
             }
         });
     }

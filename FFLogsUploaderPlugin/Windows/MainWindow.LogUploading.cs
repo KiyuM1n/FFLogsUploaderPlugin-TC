@@ -28,14 +28,14 @@ public partial class MainWindow
         using (ImRaii.Disabled(AnyOperationInProgress))
         {
             ImGui.Spacing();
-            ImGui.Text("Log file to upload:");
+            ImGui.Text("要上傳的紀錄檔：");
         
             ImGui.SetNextItemWidth(-80);
             ImGui.InputText("##logFile", ref logFilePath);
             ImGui.SameLine();
-            if (ImGui.Button("Browse##browseLogFile"))
-                fileDialogManager.OpenFileDialog("Select Log File",
-                                                 "Log files{.log},All files{.*}",
+            if (ImGui.Button("瀏覽##browseLogFile"))
+                fileDialogManager.OpenFileDialog("選擇紀錄檔",
+                                                 "紀錄檔{.log},所有檔案{.*}",
                                                  (success, paths) =>
                                                  {
                                                      if (success && paths.Count > 0)
@@ -60,27 +60,27 @@ public partial class MainWindow
             // ImGui.SameLine();
         }
         
-        if (DrawActionButtonAndMessages("Upload", AnyOperationInProgress, uploadALogProgressMessage, uploadALogErrorMessage))
+        if (DrawActionButtonAndMessages("上傳", AnyOperationInProgress, uploadALogProgressMessage, uploadALogErrorMessage))
             DoUploadLogFile();
 
         if (!uploadALogReportCode.IsNullOrWhitespace())
         {
             ImGui.Spacing();
-            ImGui.Text("Log file successfully uploaded!");
+            ImGui.Text("紀錄檔上傳完成！");
             
             ImGui.SameLine();
-            if (ImGui.Button("Copy report link"))
+            if (ImGui.Button("複製報告連結"))
                 ImGui.SetClipboardText($"https://cn.fflogs.com/reports/{uploadALogReportCode}");
 
             ImGui.SameLine();
-            if (ImGui.Button("Open report link"))
+            if (ImGui.Button("開啟報告"))
                 Task.Run(() => Process.Start(new ProcessStartInfo
                 {
                     FileName = $"https://cn.fflogs.com/reports/{uploadALogReportCode}", UseShellExecute = true
                 }));
             
             ImGui.SameLine();
-            if (ImGui.Button("Open XIVAnalysis"))
+            if (ImGui.Button("開啟 XIVAnalysis"))
                 Task.Run(() => Process.Start(new ProcessStartInfo
                 {
                     FileName = $"https://xivanalysis.com/fflogs/{uploadALogReportCode}", UseShellExecute = true
@@ -98,14 +98,14 @@ public partial class MainWindow
         if (logFilePath.IsNullOrWhitespace())
         {
             uploadALogStatus = OperationStatus.Idle;
-            uploadALogErrorMessage = "Path to log file is missing.";
+            uploadALogErrorMessage = "請指定紀錄檔路徑。";
             return;
         }
         
         if (!File.Exists(logFilePath))
         {
             uploadALogStatus = OperationStatus.Idle;
-            uploadALogErrorMessage = "Log file does not exist, or is not a file.";
+            uploadALogErrorMessage = "紀錄檔不存在，或不是檔案。";
             return;
         }
         

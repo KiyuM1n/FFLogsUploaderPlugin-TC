@@ -57,11 +57,11 @@ public sealed class Plugin : IDalamudPlugin
         
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Opens the FFLogs uploader."
+            HelpMessage = "開啟 FF Logs 上傳工具。"
         });
         CommandManager.AddHandler(CallWipeCommandName, new CommandInfo(OnCallWipe)
         {
-            HelpMessage = "Calls a wipe when live logging."
+            HelpMessage = "即時紀錄時手動判定滅團。"
         });
 
         // Tell the UI system that we want our windows to be drawn through the window system
@@ -137,14 +137,14 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (!FFLogs.IsLiveLogging)
         {
-            ChatGui.PrintError("[FF Logs Uploader] Currently not live logging, cannot call wipe.");
+            ChatGui.PrintError("[FF Logs Uploader] 目前沒有在即時紀錄，無法判定滅團。");
             return;
         }
         
         Task.Run(async () =>
         {
             await FFLogs.CallWipeAsync();
-            ChatGui.Print("[FF Logs Uploader] Called a wipe.");
+            ChatGui.Print("[FF Logs Uploader] 已判定滅團。");
         });
     }
     

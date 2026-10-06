@@ -29,11 +29,11 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
         Action<string>? onReportCreated = null,
         CancellationToken token = default)
     {
-        progress?.Report("Live logging started.");
+        progress?.Report("即時紀錄已開始。");
         FightsUploaded = 0;
         await logParser.ClearAsync();
         
-        progress?.Report("Creating FFLogs report.");
+        progress?.Report("正在建立 FF Logs 報告。");
         var uploadTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var report = await desktopClient.CreateReportAsync(
                          await logParser.GetParserVersionAsync(),
@@ -65,9 +65,9 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
             }
 
             var fileInfo = new FileInfo(latestLogFile);
-            var catchupAction = includeEntireFileInReport ? "Uploading" : "Parsing";
+            var catchupAction = includeEntireFileInReport ? "上傳" : "解析";
             
-            progress?.Report($"{catchupAction} latest log file {Path.GetFileName(latestLogFile)} (0%)");
+            progress?.Report($"正在{catchupAction}最新紀錄檔 {Path.GetFileName(latestLogFile)} (0%)");
             
             // We intentionally don't use a cancellation token here because we check for cancellation every time
             // after a chunk is uploaded.
@@ -80,7 +80,7 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
                                                      [], true, false, false);
                 logReader.CurrentPosition = chunk.EndPosition;
                 
-                progress?.Report($"{catchupAction} latest log file {Path.GetFileName(latestLogFile)} ({Math.Min(100, chunk.EndPosition * 100 / fileInfo.Length)}%, {chunk.EndPosition}/{Math.Max(chunk.EndPosition,fileInfo.Length)})");
+                progress?.Report($"正在{catchupAction}最新紀錄檔 {Path.GetFileName(latestLogFile)} ({Math.Min(100, chunk.EndPosition * 100 / fileInfo.Length)}%, {chunk.EndPosition}/{Math.Max(chunk.EndPosition,fileInfo.Length)})");
 
                 if (token.IsCancellationRequested)
                     break;
@@ -99,8 +99,8 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
         Plugin.Log.Debug("Staring main live log watch loop");
 
         progress?.Report(logReader.CurrentFile != null
-                             ? $"Watching for new logs from {Path.GetFileName(logReader.CurrentFile)}."
-                             : "Waiting for a log file. Log files last written more than 6 hours ago are not considered for live logging.");
+                             ? $"正在監看 {Path.GetFileName(logReader.CurrentFile)} 的新紀錄。"
+                             : "等待紀錄檔中。超過 6 小時沒有寫入的紀錄檔不會用於即時紀錄。");
 
         FileInfo? latestFileInfo = null;
         var lastMeterCollection = DateTime.UtcNow;
@@ -148,7 +148,7 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
                 segmentId = await UploadLogPartAsync(report.Code, chunk.Lines, chunk.EndPosition, chunk.IsEof,
                                                      segmentId, region, [], true, false,
                                                      pushFightIfNeeded);
-                progress?.Report($"Uploading latest log file {chunk.FileName} ({Math.Min(100, chunk.EndPosition * 100 / chunk.FileInfo.Length)}%, {chunk.EndPosition}/{Math.Max(chunk.EndPosition, chunk.FileInfo.Length)}), {FightsUploaded} fights uploaded");
+                progress?.Report($"正在上傳最新紀錄檔 {chunk.FileName} ({Math.Min(100, chunk.EndPosition * 100 / chunk.FileInfo.Length)}%, {chunk.EndPosition}/{Math.Max(chunk.EndPosition, chunk.FileInfo.Length)})，已上傳 {FightsUploaded} 場戰鬥");
             }
 
             if (token.IsCancellationRequested)
@@ -156,7 +156,7 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
         }
 
         await desktopClient.TerminateReport(report.Code);
-        progress?.Report("Live logging completed.");
+        progress?.Report("即時紀錄已結束。");
     }
 
     public async Task<string> UploadLogFileAsync(
@@ -168,10 +168,10 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
         List<LogParser.ScannedRaid>? raidsToUpload = null,
         IProgress<string>? progress = null)
     {
-        progress?.Report("Starting log file upload");
+        progress?.Report("開始上傳紀錄檔");
         await logParser.ClearAsync();
         
-        progress?.Report("Creating FFLogs report");
+        progress?.Report("正在建立 FF Logs 報告");
         var uploadTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var report = await desktopClient.CreateReportAsync(
                          await logParser.GetParserVersionAsync(),
@@ -188,7 +188,7 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
         
         await logParser.SetReportCodeAsync(reportCode);
 
-        progress?.Report("Uploading log file (0%)");
+        progress?.Report("正在上傳紀錄檔 (0%)");
         
         // The official uploader will process 5000 lines of the log file at a time, maximum 8MB per chunk.
         // ACT log files should not be 8MB per 5000 lines, so we don't care about that.
@@ -196,10 +196,10 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
         {
             segmentId = await UploadLogPartAsync(reportCode, chunk.Lines, chunk.EndPosition, chunk.IsEof, segmentId, region,
                                                  raidsToUpload ?? [], false, false, false);
-            progress?.Report($"Uploading log file ({Math.Min(100, chunk.EndPosition * 100 / logFileSize)}%, {chunk.EndPosition}/{logFileSize}), {FightsUploaded} fights uploaded");
+            progress?.Report($"正在上傳紀錄檔 ({Math.Min(100, chunk.EndPosition * 100 / logFileSize)}%, {chunk.EndPosition}/{logFileSize})，已上傳 {FightsUploaded} 場戰鬥");
         }
         
-        progress?.Report("Finalizing FFLogs report");
+        progress?.Report("正在完成 FF Logs 報告");
 
         await logParser.ClearAsync();
         await desktopClient.TerminateReport(reportCode);
@@ -228,7 +228,7 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
         if (!result.Success)
         {
             Plugin.Log.Error($"[LogUploader] Failed to parse log line {result.ParsedLineCount}\n{result.Line}\n{JsonConvert.SerializeObject(result.Exception, Formatting.Indented)}");
-            throw new LogUploaderException("Failed to parse a log line, please check Dalamud logs (/xllog)");
+            throw new LogUploaderException("解析紀錄時發生錯誤，請查看 Dalamud 日誌 (/xllog)");
         }
 
         var fightData = await logParser.CollectFightsAsync(
@@ -258,7 +258,7 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
         if (!masterInfo.Success)
         {
             await logParser.ClearAsync();
-            throw new LogUploaderException("Failed to collect master info from parser");
+            throw new LogUploaderException("無法從 parser 取得報告主資料");
         }
 
         var masterTable = BuildMasterTable(fightData.LogVersion, fightData.GameVersion,

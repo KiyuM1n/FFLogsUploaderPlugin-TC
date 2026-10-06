@@ -244,7 +244,7 @@ public class DesktopClient : IDisposable
         
             var error = JsonConvert.DeserializeObject<ErrorMessage>(content);
 
-            throw new DesktopClientException(error?.Message ?? "Unknown error.");
+            throw new DesktopClientException(error?.Message ?? "未知錯誤。");
         }
         catch (JsonReaderException e)
         {

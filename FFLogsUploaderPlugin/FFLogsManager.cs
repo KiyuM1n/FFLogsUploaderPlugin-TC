@@ -222,16 +222,16 @@ public class FFLogsManager : IAsyncDisposable
                                         bool includeEntireFileInReport = false)
     {
         if (liveLogCts is { IsCancellationRequested: false })
-            throw new InvalidOperationException("Live logging is already running.");
+            throw new InvalidOperationException("即時紀錄已在執行中。");
         
         liveLogCts = new CancellationTokenSource();
         liveLogTask = Task.Run(async () =>
         {
             if (logFolder.IsNullOrWhitespace())
-                throw new ArgumentException("Path to log folder is missing.", nameof(logFolder));
+                throw new ArgumentException("請指定紀錄檔資料夾。", nameof(logFolder));
 
             if (!Directory.Exists(logFolder))
-                throw new ArgumentException("Specified log folder does not exist, or is a file.", nameof(logFolder));
+                throw new ArgumentException("指定的紀錄檔資料夾不存在，或不是資料夾。", nameof(logFolder));
             
             OnLiveLoggingStarted();
             
@@ -401,14 +401,14 @@ public class FFLogsManager : IAsyncDisposable
 
         if (firstLogLine == null)
         {
-            throw new SplitLogException("Log file is empty.");
+            throw new SplitLogException("紀錄檔是空的。");
         }
 
         var splitTimestamp = firstLogLine.Split("|").ElementAtOrDefault(1);
 
         if (splitTimestamp == null)
         {
-            throw new SplitLogException("Invalid log file. First log line is missing a timestamp.");
+            throw new SplitLogException("紀錄檔格式不正確：第一行沒有時間戳記。");
         }
 
         uint lastZoneId = 0;
@@ -429,7 +429,7 @@ public class FFLogsManager : IAsyncDisposable
         while (await sr2.ReadLineAsync() is { } line)
         {
             lineNumber++;
-            progress?.Report($"Reading line {lineNumber}");
+            progress?.Report($"正在讀取第 {lineNumber} 行");
             
             var lineSplit = line.Split("|");
             var eventIdStr = lineSplit.ElementAtOrDefault(0);
@@ -437,7 +437,7 @@ public class FFLogsManager : IAsyncDisposable
 
             if (eventIdStr == null || timestamp == null || !int.TryParse(eventIdStr, CultureInfo.InvariantCulture, out var eventId))
             {
-                throw new SplitLogException($"Log file is invalid: line {lineNumber} is missing event ID or timestamp, or event ID is not a valid number");
+                throw new SplitLogException($"紀錄檔格式不正確：第 {lineNumber} 行缺少事件 ID 或時間戳記，或事件 ID 不是有效的數字");
             }
 
             if (eventId == 253)
@@ -453,7 +453,7 @@ public class FFLogsManager : IAsyncDisposable
                 if (!uint.TryParse(lineSplit.ElementAtOrDefault(2), NumberStyles.HexNumber,
                                   CultureInfo.InvariantCulture, out var zoneId))
                 {
-                    throw new SplitLogException($"Log file is invalid: line {lineNumber}'s zone ID is invalid");
+                    throw new SplitLogException($"紀錄檔格式不正確：第 {lineNumber} 行的區域 ID 無效");
                 }
 
                 if (groupSameContent)
@@ -571,11 +571,11 @@ public class FFLogsManager : IAsyncDisposable
             
             Task.Run(async () =>
             {
-                Plugin.ChatGui.Print("[FF Logs Uploader] Duty ended. Stopping live logging after 5 seconds.");
+                Plugin.ChatGui.Print("[FF Logs Uploader] 副本已結束，5 秒後停止即時紀錄。");
                 await Task.Delay(TimeSpan.FromSeconds(5));
                 StopLiveLogging();
                 isStoppingLiveLogging = false;
-                Plugin.ChatGui.Print("[FF Logs Uploader] Live logging stopped.");
+                Plugin.ChatGui.Print("[FF Logs Uploader] 即時紀錄已停止。");
             });
         }
     }
@@ -590,8 +590,8 @@ public class FFLogsManager : IAsyncDisposable
                     Plugin.NotificationManager.AddNotification(new Notification
                     {
                         Type = NotificationType.Success,
-                        Title = "Called wipe automatically.",
-                        MinimizedText = "Called wipe automatically.",
+                        Title = "已自動判定滅團。",
+                        MinimizedText = "已自動判定滅團。",
                         Minimized = true,
                     });
                     return;
@@ -601,9 +601,9 @@ public class FFLogsManager : IAsyncDisposable
                 Plugin.NotificationManager.AddNotification(new Notification
                 {
                     Type = NotificationType.Error,
-                    Title = "Failed to automatically call a wipe",
-                    Content = "Use /callwipe to call a wipe manually. View logs from /xllog for details.",
-                    MinimizedText = "Failed to automatically call a wipe",
+                    Title = "自動判定滅團失敗",
+                    Content = "請使用 /callwipe 手動判定滅團，詳細資訊請查看 /xllog。",
+                    MinimizedText = "自動判定滅團失敗",
                     Minimized = false,
                 });
             });

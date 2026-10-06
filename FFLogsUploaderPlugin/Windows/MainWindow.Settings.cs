@@ -81,7 +81,7 @@ public partial class MainWindow
         ImGui.Spacing();
         if (plugin.FFLogs.User is { } user)
         {
-            ImGui.Text($"Logged in as {user.User.UserName}");  
+            ImGui.Text($"已登入：{user.User.UserName}");  
             
             ImGui.SameLine();
             
@@ -89,7 +89,7 @@ public partial class MainWindow
             // (either successfully or failed)
             using (ImRaii.Disabled(AnyOperationInProgress || !plugin.FFLogs.ParsersReady))
             {
-                if (ImGui.Button("Log out"))
+                if (ImGui.Button("登出"))
                 {
                     email = string.Empty;
                     password = string.Empty;
@@ -101,13 +101,13 @@ public partial class MainWindow
         }
         else
         {
-            ImGui.Text("Currently not logged in.");
+            ImGui.Text("目前未登入。");
         }
         
         
         using (ImRaii.Disabled(AnyOperationInProgress))
         {
-            if (ImGui.Checkbox("Start live logging when entering duty", ref startLiveLoggingWhenDutyStarts))
+            if (ImGui.Checkbox("進入副本時自動開始即時紀錄", ref startLiveLoggingWhenDutyStarts))
             {
                 plugin.Configuration.StartLiveLoggingWhenDutyStarts = startLiveLoggingWhenDutyStarts;
                 plugin.Configuration.Save();
@@ -115,10 +115,10 @@ public partial class MainWindow
 
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             {
-                ImGui.SetTooltip("Covers dungeons, trials, raids, alliance raids, chaotic alliance raids, ultimate raids.\nUnrestricted parties do not automatically start live logging, but duty support currently will.\nOptions are taken from the Live Log tab, except \"Include entire file in report\"\nwill always be disabled, and description will always be empty.\nMay have issues with unsupported dungeons.");
+                ImGui.SetTooltip("適用於迷宮挑戰、討伐殲滅戰、大型任務、24 人大型任務、混沌聯盟戰和絕境戰。\n解除限制的隊伍不會自動開始，但目前剿滅支援 (Duty Support) 會。\n選項沿用「即時紀錄」分頁的設定，但「將整個紀錄檔加入報告」一律關閉，\n報告說明一律留空。\n不支援的迷宮挑戰可能會有問題。");
             }
 
-            if (ImGui.Checkbox("Stop live logging 5 seconds after leaving duty", ref stopLiveLoggingWhenDutyEnds))
+            if (ImGui.Checkbox("離開副本 5 秒後自動停止即時紀錄", ref stopLiveLoggingWhenDutyEnds))
             {
                 plugin.Configuration.StopLiveLoggingWhenDutyEnds = stopLiveLoggingWhenDutyEnds;
                 plugin.Configuration.Save();
@@ -126,16 +126,16 @@ public partial class MainWindow
 
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             {
-                ImGui.SetTooltip("The delay is necessary to allow ACT to finish writing logs, and for the uploader to finish parsing them.");
+                ImGui.SetTooltip("這段延遲是為了讓 ACT 寫完紀錄，並讓上傳工具處理完畢。");
             }
 
-            if (ImGui.Checkbox("Automatically call wipes when live logging", ref automaticallyCallDutyWipe))
+            if (ImGui.Checkbox("即時紀錄時自動判定滅團", ref automaticallyCallDutyWipe))
             {
                 plugin.Configuration.AutomaticallyCallDutyWipe = automaticallyCallDutyWipe;
                 plugin.Configuration.Save();
             }
 
-            if (ImGui.Checkbox("EngageTimer stopwatch resets on phase change", ref engageTimerPerPhase))
+            if (ImGui.Checkbox("EngageTimer 計時器在換階段時重置", ref engageTimerPerPhase))
             {
                 plugin.Configuration.EngageTimerPerPhase = engageTimerPerPhase;
                 plugin.Configuration.Save();
@@ -148,7 +148,7 @@ public partial class MainWindow
 
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             {
-                ImGui.SetTooltip("- Requires EngageTimer plugin installed.\n- Scans for logs from the live logging folder and parses them for phase changes.\n- Only applies to things FFLogs consider to have phases (which are basically only ultimates).");
+                ImGui.SetTooltip("- 需要安裝 EngageTimer 外掛。\n- 會讀取即時紀錄資料夾中的紀錄檔來判斷換階段。\n- 只適用於 FF Logs 有分階段的戰鬥（基本上只有絕境戰）。");
             }
         }
     }

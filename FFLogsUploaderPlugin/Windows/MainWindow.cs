@@ -38,7 +38,7 @@ public partial class MainWindow : Window, IDisposable
     // The user will see "My Amazing Window" as window title,
     // but for ImGui the ID is "My Amazing Window##With a hidden ID"
     public MainWindow(Plugin plugin)
-        : base("FFLogs Uploader###FFLogsMainWindow", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
+        : base("FF Logs 上傳工具###FFLogsMainWindow", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         SizeConstraints = new WindowSizeConstraints
         {
@@ -93,7 +93,7 @@ public partial class MainWindow : Window, IDisposable
         using var tabBar = ImRaii.TabBar("FFLogsTabs");
         if (tabBar.Success)
         {
-            using (var liveLogTabItem = ImRaii.TabItem("Live Log"))
+            using (var liveLogTabItem = ImRaii.TabItem("即時紀錄###LiveLogTab"))
             {
                 if (liveLogTabItem.Success)
                 {
@@ -101,7 +101,7 @@ public partial class MainWindow : Window, IDisposable
                 }
             }
 
-            using (var uploadALogTabItem = ImRaii.TabItem("Upload a Log"))
+            using (var uploadALogTabItem = ImRaii.TabItem("上傳紀錄檔###UploadTab"))
             {
                 if (uploadALogTabItem.Success)
                 {
@@ -109,7 +109,7 @@ public partial class MainWindow : Window, IDisposable
                 }
             }
 
-            using (var splitALogTabItem = ImRaii.TabItem("Split a Log"))
+            using (var splitALogTabItem = ImRaii.TabItem("分割紀錄檔###SplitTab"))
             {
                 if (splitALogTabItem.Success)
                 {
@@ -117,7 +117,7 @@ public partial class MainWindow : Window, IDisposable
                 }
             }
 
-            using (var settingsTabItem = ImRaii.TabItem("Settings"))
+            using (var settingsTabItem = ImRaii.TabItem("設定###SettingsTab"))
             {
                 if (settingsTabItem.Success)
                 {
@@ -133,14 +133,14 @@ public partial class MainWindow : Window, IDisposable
         {
             var msg = e.InnerExceptions.FirstOrDefault(e).Message;
             
-            ImGui.TextColored(ImGuiColors.DalamudRed, $"Parser failed to load, please check Dalamud logs (/xllog): {msg}");
-            ImGui.TextColored(ImGuiColors.DalamudRed, "Disable and re-enable the plugin to try again.");
+            ImGui.TextColored(ImGuiColors.DalamudRed, $"Parser 載入失敗，請查看 Dalamud 日誌 (/xllog)：{msg}");
+            ImGui.TextColored(ImGuiColors.DalamudRed, "請停用後重新啟用外掛再試一次。");
             return false;
         } 
         
         if (!plugin.FFLogs.ParsersReady)
         {
-            ImGui.Text("Loading parser...");
+            ImGui.Text("正在載入 parser...");
             return false;
         }
 
@@ -153,7 +153,7 @@ public partial class MainWindow : Window, IDisposable
         var regionNames = plugin.FFLogs.User!.RegionOrServerSelectItems.Select(item => item.Label).ToArray();
         var visibilityNames = plugin.FFLogs.User!.ReportVisibilitySelectItems.Select(item => item.Label).ToArray();
         
-        ImGui.Text("Guild to upload to:");
+        ImGui.Text("上傳至公會：");
         ImGui.SameLine();
         
         ImGui.SetNextItemWidth(150);
@@ -183,7 +183,7 @@ public partial class MainWindow : Window, IDisposable
         }
 
         ImGui.Spacing();
-        ImGui.Text("Enter a description for the report:");
+        ImGui.Text("報告說明：");
         ImGui.SetNextItemWidth(-1);
         ImGui.InputText("##description", ref reportDescription);
     }
