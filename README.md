@@ -1,6 +1,6 @@
 # FF Logs Uploader（繁中服 / Dalamud API 13 版）
 
-這是 [beer-psi/FFLogsUploaderPlugin](https://github.com/beer-psi/FFLogsUploaderPlugin) 的 fork，改成可以在**繁體中文版（TC 服）**的 Dalamud 上使用。
+這是 [beer-psi/FFLogsUploaderPlugin](https://github.com/beer-psi/FFLogsUploaderPlugin) 的 fork，改成可以在 **繁體中文版（TC 服）** 的 Dalamud 上使用。
 
 原作是一個非官方的遊戲內 FF Logs 上傳外掛，可以取代 Archon App 上傳 log、切割 log 檔，也可以做即時紀錄 (live logging)。
 
