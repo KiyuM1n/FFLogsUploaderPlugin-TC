@@ -182,12 +182,18 @@ public class DesktopClient : IDisposable
         requestMessage.Headers.Add("sec-fetch-mode", "navigate");
         requestMessage.Headers.Add("sec-fetch-dest", "iframe");
         
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(60));
+        token = timeout.Token;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var resp = await httpClient.SendAsync(requestMessage, token);
+        Plugin.Log.Information("[Parser] GET parser page id={0}: HTTP {1} in {2} ms", id, (int)resp.StatusCode, sw.ElapsedMilliseconds);
 
         resp.EnsureSuccessStatusCode();
-        
+
         var doc = new HtmlDocument();
-        
+
         doc.LoadHtml(await resp.Content.ReadAsStringAsync(token));
 
         var mergedScript = new StringBuilder();
@@ -202,7 +208,9 @@ public class DesktopClient : IDisposable
                 requestMessage2.Headers.Add("sec-fetch-mode", "no-cors");
                 requestMessage2.Headers.Add("sec-fetch-dest", "script");
 
+                sw.Restart();
                 var resp2 = await httpClient.SendAsync(requestMessage2, token);
+                Plugin.Log.Information("[Parser] GET {0}: HTTP {1} in {2} ms", src, (int)resp2.StatusCode, sw.ElapsedMilliseconds);
 
                 resp2.EnsureSuccessStatusCode();
                 mergedScript.AppendLine(await resp2.Content.ReadAsStringAsync(token));

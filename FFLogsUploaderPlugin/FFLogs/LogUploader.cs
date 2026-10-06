@@ -51,6 +51,9 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
 
         var segmentId = 1L;
         var logReader = new DirectoryLogReader(logFolder);
+
+        Plugin.Log.Information("[LiveLog] Report {0} created: Region={1} Folder={2} LatestFile={3}",
+                               report.Code, region, logFolder, logReader.CurrentFile ?? "(none)");
         
         if (logReader.CurrentFile is { } latestLogFile)
         {
@@ -241,7 +244,9 @@ public class LogUploader(DesktopClient desktopClient, LogParser logParser)
             fightData = inProgressFightData;
         }
 
-        // Plugin.Log.Debug("[LogUploader] Fights.Count={FightCount}", fightData.Fights.Count);
+        Plugin.Log.Debug("[LogUploader] Lines={0} Position={1} Eof={2} PushFight={3} Fights={4} InProgress={5}",
+                         lines.Count, startPosition, isEof, pushFightIfNeeded, fightData.Fights.Count,
+                         hasInProgressFight);
 
         if (fightData.Fights.Count <= 0)
         {

@@ -65,6 +65,7 @@ public class FFLogsManager : IAsyncDisposable
         return Task.Run(async () =>
         {
             await LoginFromConfigurationAsync(token);
+            Plugin.Log.Information("[Init] Automatic login finished: LoggedIn={0}", User != null);
 
             if (User != null)
                 await StartParsersAsync(false, true, true, token);
@@ -190,15 +191,21 @@ public class FFLogsManager : IAsyncDisposable
 
         return Task.Run(async () =>
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            Plugin.Log.Information("[Parser] Downloading parser {0}", LogParser.Id);
             var script = await DesktopClient.DownloadParserScript(
                              LogParser.Id, gameContentDetectionEnabled, false, false, token);
+            Plugin.Log.Information("[Parser] Downloaded parser {0}: {1} chars in {2} ms", LogParser.Id, script.Length, sw.ElapsedMilliseconds);
             var script2 = await DesktopClient.DownloadParserScript(
                               MetersLogParser.Id, gameContentDetectionEnabled, metersEnabled, liveFightDataEnabled,
                               token);
+            Plugin.Log.Information("[Parser] Downloaded parser {0}: {1} chars in {2} ms", MetersLogParser.Id, script2.Length, sw.ElapsedMilliseconds);
 
             await LogParser.StartAsync(gameContentDetectionEnabled, false, false, script, token);
+            Plugin.Log.Information("[Parser] Started parser {0} in {1} ms", LogParser.Id, sw.ElapsedMilliseconds);
             await MetersLogParser.StartAsync(gameContentDetectionEnabled, metersEnabled, liveFightDataEnabled, script2,
                                              token);
+            Plugin.Log.Information("[Parser] Started parser {0} in {1} ms", MetersLogParser.Id, sw.ElapsedMilliseconds);
         }, token).ContinueWith(t =>
         {
             if (t.Exception != null)
