@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.NET.Sdk/13.1.0">
   <PropertyGroup>
-    <Version>0.0.0.13</Version>
-    <PackageProjectUrl>https://github.com/beer-psi/FFLogsUploaderPlugin</PackageProjectUrl>
+    <Version>0.0.13.1</Version>
+    <PackageProjectUrl>https://github.com/KiyuM1n/FFLogsUploaderPlugin-TC</PackageProjectUrl>
     <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
     <IsPackable>false</IsPackable>
     <RootNamespace>FFLogsUploaderPlugin</RootNamespace>

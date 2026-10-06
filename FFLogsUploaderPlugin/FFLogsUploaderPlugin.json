@@ -1,10 +1,10 @@
 {
-  "Author": "beerpsi",
-  "Name": "FF Logs Uploader",
-  "Punchline": "An unofficial in-game log uploader client for FF Logs",
-  "Changelog": "- Add an option to reset EngageTimer every phase on ultimates. This requires live logging to be running.\n- Attempt to clean up native libraries used by the plugin after the plugin is unloaded.",
-  "Description": "An alternative to the Archon App for uploading logs to the FF Logs service. Basic features are covered: uploading a log, splitting a log file, live logging.",
-  "RepoUrl": "https://github.com/beer-psi/FFLogsUploaderPlugin",
+  "Author": "beerpsi, KiyuM1n",
+  "Name": "FF Logs Uploader (繁中服)",
+  "Punchline": "非官方的遊戲內 FF Logs 上傳工具（繁中服版）",
+  "Changelog": "- 支援繁中服 Dalamud API 13\n- 上傳至 cn.fflogs.com，parser 請求帶 gameVersionId=ff-live-cn\n- 修正區域設定錯誤導致即時紀錄抓不到戰鬥\n- 介面翻譯成繁體中文",
+  "Description": "取代 Archon App 上傳紀錄到 FF Logs，支援上傳紀錄檔、分割紀錄檔與即時紀錄。基於 beer-psi/FFLogsUploaderPlugin 修改。",
+  "RepoUrl": "https://github.com/KiyuM1n/FFLogsUploaderPlugin-TC",
   "ApplicableVersion": "any",
   "Tags": ["logs", "fflogs", "uploader"],
   "CategoryTags": ["Utility", "Other"]
