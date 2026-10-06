@@ -36,13 +36,6 @@ dotnet build FFLogsUploaderPlugin/FFLogsUploaderPlugin.csproj -c Release
 
 自己編譯的版本可以用 Dev Plugin 方式載入：把 `latest.zip` 解壓縮到固定的資料夾，在 `/xlsettings` →「實驗性功能」→「開發外掛位置」加入 `FFLogsUploaderPlugin.dll` 的完整路徑。
 
-## 發布新版本
-
-1. 修改 `FFLogsUploaderPlugin/FFLogsUploaderPlugin.csproj` 的 `<Version>`，並更新 `FFLogsUploaderPlugin/FFLogsUploaderPlugin.json` 的 `Changelog`。
-2. 編譯，取得 `latest.zip`。
-3. 在 GitHub 建立 Release，tag 為 `v<版本>`，附上 `latest.zip`。
-4. 修改 `repo.json` 的 `AssemblyVersion`、`Changelog` 和三個下載連結中的版本，push 到 `master`。
-
 ## 授權
 
 與原作相同，採用 [GNU AGPL-3.0](LICENSE.md)。原作著作權屬於 beerpsi。
