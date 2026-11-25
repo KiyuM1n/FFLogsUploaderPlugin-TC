@@ -208,10 +208,16 @@ public class FFLogsManager : IAsyncDisposable
             Plugin.Log.Information("[Parser] Started parser {0} in {1} ms", MetersLogParser.Id, sw.ElapsedMilliseconds);
         }, token).ContinueWith(t =>
         {
-            if (t.Exception != null)
-                Plugin.Log.Error(t.Exception, "Failed to start parsers");
-            return ParsersError = t.Exception;
-        }, token);
+            // An OperationCanceledException (e.g. the 60s download timeout) leaves the task Canceled, not
+            // Faulted, so t.Exception is null. Surface it as an error instead of loading forever.
+            var error = t.Exception
+                        ?? (t.IsCanceled
+                                ? new AggregateException(new TimeoutException("Parser 載入逾時或被取消。"))
+                                : null);
+            if (error != null)
+                Plugin.Log.Error(error, "Failed to start parsers");
+            return ParsersError = error;
+        });
     }
     
     private Task StartLiveLoggingAsync(string logFolder,

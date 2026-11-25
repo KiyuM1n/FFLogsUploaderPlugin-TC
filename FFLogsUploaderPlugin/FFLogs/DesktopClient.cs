@@ -16,10 +16,10 @@ namespace FFLogsUploaderPlugin.FFLogs;
 public class DesktopClient : IDisposable
 {
     private const string BaseUrl = "https://cn.fflogs.com";
-    private const string ArchonAppLiteVersion = "9.6.140";
+    private const string ArchonAppLiteVersion = "9.7.0";
     private const string GameVersionId = "ff-live-cn";
     private const string UserAgent =
-        $"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ArchonAppLite/{ArchonAppLiteVersion} Chrome/138.0.7204.251 Electron/37.9.0 Safari/537.36";
+        $"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ArchonAppLite/{ArchonAppLiteVersion} Chrome/142.0.7444.265 Electron/39.8.10 Safari/537.36";
     
     private readonly JsonSerializerSettings jsonSerializerSettings = new()
     {
